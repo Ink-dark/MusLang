@@ -1,6 +1,6 @@
 # MusLang — 产品需求文档（PRD）
 
-> **项目代号**：MusLang-Qomolongma
+> **项目代号**：MusLang-Qomolangma
 > **仓库**：https://gitee.com/moranqidarkseven/MusLang
 > **所属生态**：MusCat 浏览器的原生系统编程语言
 > **文档版本**：v0.2
