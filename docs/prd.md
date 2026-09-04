@@ -3,7 +3,7 @@
 > **项目代号**：MusLang-Qomolangma
 > **仓库**：https://gitee.com/moranqidarkseven/MusLang
 > **所属生态**：MusCat 浏览器的原生系统编程语言
-> **文档版本**：v0.4
+> **文档版本**：v0.4.1
 > **创建日期**：2026-08-30
 > **更新日期**：2026-09-04
 > **作者**：墨染柒（Ink-dark）
@@ -12,7 +12,8 @@
 > - v0.1（2026-08-30）：初稿
 > - v0.2（2026-08-30）：补充链接器章节、muslink 设计
 > - v0.3（2026-09-01）：全面完善——补齐错误处理、测试策略、API 规范、安全模型形式化、开放问题分析框架、模块系统、文档体系、CI/CD、治理模型
-> - v0.4（2026-09-04）：架构决策落地：定位改为「类 Rust，不保证源码兼容」（§1.1，D-1）；新增架构决策记录（§3.7）含互操作架构、共享方言+HIR、D-0~D-11 决策表、双 runtime（muslang-rt / muslang-rt-c）、std 三层按需链接+sys 三端可扩展；补充 `unsafe` 等价判定与 CI 门禁（§3.2.1 K3，D-4）；默认后端由 Zig 改为 C99（FR-032、§3.4.1、§5.3，D-2）；异步模型改为后端无关实现（§3.6.1）；二进制体积口径定稿为 L1 core 裸启动 `<8KB`（§4.1、§10）；新增 M1-0 决策冻结阶段与 v0.4 裁剪建议（§8）
+> - v0.4（2026-09-04）：架构决策落地（§3.7 架构决策记录、后端 C99 默认、双 runtime、std 按需链接 + 三端、二进制体积口径定稿、M1-0 决策冻结）
+> - v0.4.1（2026-09-04）：语义定稿——① `defer` 与错误传播 / 异步取消的交互规则（§3.2.3.1，D-12）；② 跨 `.so` 所有权移交协议 A+C 混合、函数级策略一致性（§3.8，D-7 定稿）；③ 配套引用补充（§15.1）
 
 ---
 
@@ -156,6 +157,69 @@ fn process_file(path: &str) -> Result<(), IoError> {
 - 与 Zig 一致，显式优于隐式
 - 避免 RAII 析构函数在 FFI 边界的复杂性
 - 内核场景中资源清理路径必须可见
+
+#### 3.2.3.1 `defer` 与错误传播、异步取消的交互（D-12）
+
+> **v0.4.1 定稿**。MusLang 无 RAII / `Drop` trait，资源清理由 `defer`（正常路径）与 `errdefer`（错误路径）显式承担。本小节定义其与 `?` 提前返回、以及 `async fn` 在 `.await` 点被取消时的精确语义。**规则为函数级、编译期强制，无运行时开销。**
+
+**规则一：正常退出 → `defer` / `errdefer` 均执行（LIFO）**
+
+作用域无论以何种**非错误**方式退出（自然结束、`return`、`break` 跳出块），已注册的 `defer` 与 `errdefer` 按**后进先出**顺序执行：
+
+```rust
+fn process(path: &str) -> Result<(), IoError> {
+    let file = fs::open(path)?;      // 若 ? 提前返回，走规则二
+    defer file.close();              // 仅正常退出路径执行
+    errdefer log_failure(path);      // 仅错误退出路径执行（见规则二）
+
+    let data = file.read_all()?;     // ? 触发 → 仅 errdefer 执行
+    Ok(())
+}   // 正常到达此处 → 仅 defer 执行
+```
+
+**规则二：`?` 提前返回（错误路径）→ 仅 `errdefer` 执行**
+
+`?` 将错误从当前作用域返回时，该作用域内已注册的 `defer` **不执行**，仅 `errdefer` 按 LIFO 执行。这是 Zig 的 `errdefer` 语义 ：错误路径上的资源回滚显式标注，符合 P1「零隐藏控制流」——清理行为由关键字即可读出，无需追溯整个作用域。
+
+- **多个 `errdefer`**：按注册的逆序（LIFO）执行；
+- **`defer` 与 `errdefer` 混合**：错误路径只跑 `errdefer` 链，正常路径只跑 `defer` 链，两者**互不交叉**；
+- **`errdefer` 块本身允许 `?`** 吗？不允许——`errdefer` 体必须为 infallible（不返回 `Result`）。否则清理失败会形成「错误路径上再出错」的不可判定状态，由编译器拒绝。
+
+**规则三：`async fn` 在 `.await` 点被取消 → `defer` / `errdefer` 的同步部分执行**
+
+`async fn` 编译期展开为状态机（FR-043）；当该 future 在 `.await` 点被丢弃（取消）时：
+
+1. **取消只发生在 `.await` 点**（协作式），与 Rust 的取消模型一致 ；进入长同步循环而无 `.await` 的 `async fn` **不可被取消**——此限制须在文档与 LSP 提示中明示；
+2. 状态机按**逆构造顺序**丢弃所有跨 `.await` 点存活的局部变量，`defer` / `errdefer` 中**不含 `.await` 的同步部分**照常执行（规则一同态）；
+3. **`defer` 块内禁止 `.await`**（编译期硬拒绝）。理由：异步析构（async Drop）是 Rust 折腾多年仍未稳定的难题 ，MusLang MVP 不应踩此坑——**需要异步清理的资源必须显式调用 `close().await`，不得隐藏在 `defer` 中**；
+4. 异步资源的显式关闭接口（如 `TcpStream::close(self) -> impl Future`）须在标准库中统一提供，`defer stream.close()` 此类**同步**调用仅关闭底层 fd、不等待优雅关闭，属用户知情的选择。
+
+> **取消安全（cancel-safety）**：取消后已执行的 `defer` / `errdefer` 必须保持资源不变量——标准库异步类型须文档化其在 `.await` 点被取消时的行为（对标 Tokio 的 cancel-safe 约定 ）。
+
+**规则四：多个 `defer` 的执行顺序与可见性**
+
+- 同一作用域内多个 `defer`：按**文本逆序**（后注册先执行），与 Zig、Go 一致；
+- `defer` 可引用外层变量，但**不可捕获跨 `.await` 点被移动的变量**（借用检查器在 HIR 阶段按状态机拆分点校验，防止 use-after-move）；
+- `defer` 体内的 panic：**不**被自动捕获，直接向上传播并终止同作用域剩余 `defer`——避免「清理失败静默」。
+
+**函数级校验（编译器强制）**
+
+| 校验项 | 阶段 | 违反时行为 |
+|---|---|---|
+| `defer` 体含 `.await` | HIR / 类型检查 | 报错 `E_DEFER_AWAIT_FORBIDDEN` |
+| `errdefer` 体返回 `Result` | 类型检查 | 报错 `E_ERRDEFER_INFALLIBLE` |
+| `?` 用于 `errdefer` 体内 | 类型检查 | 报错 `E_ERRDEFER_TRY_FORBIDDEN` |
+| 跨 `.await` 捕获被移动变量 | 借用检查（MIR） | 报错 `E_DEFER_CAPTURE_MOVED` |
+| 取消后 `defer` 访问已 drop 局部 | 借用检查（MIR） | 报错 `E_DEFER_USE_AFTER_DROP` |
+
+错误码固定、文档化，纳入 D-4 的 `unsafe_examples/` + `--unsafe-allowed=false` CI 门禁覆盖范围（`defer` 相关检查默认开启、不可关闭）。
+
+**与既有设计的衔接**
+
+- **§3.2.3**：`defer` 替代 RAII 的总纲，本小节为其语义细化，不冲突；
+- **§3.6 / FR-045~047**：取消为协作式、仅 `.await` 点，调度器（work-stealing，P1）可随时 drop 未轮询 future——本规则保证 drop 时资源不变量仍成立；
+- **§3.7 D-4**：`defer` / `errdefer` 检查属编译期安全机制，不引入运行时；
+- **§3.8 D-7**：跨 `.so` 边界传入/返回的资源句柄，其 `defer` 清理**必须在同侧完成**（见「策略一致性」），C 侧持有的句柄不得由 MusLang 侧的 `defer` 关闭，反之亦然。
 
 ### 3.3 标准库（P0/P1）
 
@@ -344,8 +408,9 @@ MusLang async/await  ──编译期──→  状态机 struct
 | D-4 | `unsafe` 等价判定 | 定义 MusLang 侧禁止操作清单、检查层级、固定错误码；配套 `unsafe_examples/` + `--unsafe-allowed=false` CI 门禁 | P0，待落地 |
 | D-5 | 是否引入 MLIR | 未决（D-5 定前不引入）；若引入需同步上修 `<8KB` 指标 | 待冻结 |
 | D-6 | 调用拓扑 | 同类 runtime 内部调用 **0 开销**；仅**跨 rt / rt-c 边界**产生一次 ABI 成本 | 待冻结 |
-| D-7 | 跨 `.so` 所有权移交协议 | `Box<T>`/`Rc`/裸指针跨语言谁释放；`MusAllocator` + `[muslang::free]` + 借用检查器跟踪别名集 | 待冻结 |
-| D-8 | 双 runtime | **muslang-rt**（MusLang 原生，自有布局/borrow/类型化 panic）+ **muslang-rt-c**（C 兼容，`repr(C)`、`malloc/free`、`errno`、完整用户态语义） | 待冻结 |
+| D-7 | 跨 `.so` 所有权移交协议 | **A（严格移交）+ C（标注协议）混合允许、函数级策略一致**（同函数内禁止 A/C 混用）；B（`Arc` across FFI）为 P1 可选；`MusAllocator::from_c` 桥接 deallocator 配对（详见 §3.8） | 已定（v0.4.1） |
+| D-8 | 双 runtime | **muslang-rt**（MusLang 原生，自有布局/borrow/类型化 panic）+ **muslang-rt-c**（C 兼容，`repr(C)`、`malloc/free`、`errno`、完整用户态语义） | 已定 |
+| D-12 | `defer` 语义（含 `?` / `async`） | `defer`/`errdefer` 分离（错误路径仅 `errdefer`、LIFO）；`?` 提前返回只跑 `errdefer`；`async fn` 取消仅在 `.await` 点、协作式，`defer` 禁止 `.await`、清理归调用方显式 `close().await`；5 类错误码（详见 §3.2.3.1） | 已定（v0.4.1） |
 | D-9 | 标准库 | **按需链接**：每子系统为独立 crate（用哪个链哪个）；`sys` 层按 `target_os` 分发，**当前仅 Linux 实装**，macOS/Windows 留 trait + stub | 已定 |
 | D-10 | 系统接口 | **rt-c = std 底层 + C 互操作边界 = 唯一系统接口**；std 走 rt-c，本身不产生 FFI 开销 | 已定 |
 | D-11 | L1 范围 | `no_std` 用户态（**kernel 为远期，不在当前规划**）；是否含 libc 待确认（影响 rt-c 设计下限，建议默认 musl） | 需确认 |
@@ -418,6 +483,121 @@ your_app.mus
 | 镜像体积（L3） | + ABI 描述符（约数 KB） |
 
 > **关键澄清**：标准 `extern "C"` 调用本身**无序列化、无拷贝**；所谓"FFI 开销"只在**动态加载边界**与**跨两类 runtime** 时出现。将符号隔离从"每个调用现场"推到"模块/镜像边界"，FFI 开销即从 O(调用次数) 降为 O(模块数)。
+
+#### 3.8 跨语言所有权移交协议（D-7 定稿，v0.4.1）
+
+> **问题**：MusLang 侧 `Box<T>` + 借用检查（编译期，运行时无 borrow tracker）与 C 侧 `malloc/free` + 裸指针（运行时不管归属）之间，对象**跨 `.so` 边界**传递时须回答三个问题：① 谁分配、谁释放；② 借用安全能否跨越边界；③ `defer` / 清理逻辑在哪一侧生效。本小节为 D-7 定稿，**编译期强制，零运行时开销**。
+
+##### 3.8.1 三种移交策略
+
+| 策略 | 核心思路 | 释放责任 | 适用 |
+|---|---|---|---|
+| **A. 严格移交（Move across FFI）** | 跨边界时所有权**完整转移**，接收方全权负责释放 | 调用后**移交方不再持有** | 默认；简单、零开销、与 Rust FFI 一致 |
+| **C. 标注协议（`#[muslang::*]` 属性）** | `extern "C"` 签名上**逐参数**标注归属（`#[muslang::take]` / `#[muslang::borrow]` / `#[muslang::ret]`） | 按标注在 MusLang 侧 / C 侧各负其责 | 复杂生命周期、C 回调、长生命周期共享 |
+| **B. 共享所有权（`Arc` across FFI）** | `Arc<T>::into_raw` / `from_raw`，引用计数跨语言 | 双方均可安全持有，**须显式 `arc_drop`** | P1 标准库设施（`std::sync::ffi_arc`），**非默认** |
+
+**MusLang 默认不隐式引入引用计数**——A / C 均为零开销，B 仅在确需共享时显式选用。
+
+##### 3.8.2 核心规则：A + C 混合允许，但**函数级策略一致**（v0.4.1 决策）
+
+> **一个 `extern "C"` 函数内，所有跨边界参数的所有权策略必须统一——要么全部 A（严格移交），要么全部 C（标注协议），不允许混用。**
+
+```rust
+// ✅ 合法：整函数统一为 C（每个参数均有标注）
+extern "C" {
+    #[muslang::strategy(C)]
+    fn parse_request(
+        req:  *const Request,   #[muslang::borrow]   // 调用期借用，MusLang 仍拥有
+        out:  *mut *mut Response, #[muslang::ret]    // 返回值归 C 侧释放
+    ) -> c_int;
+}
+
+// ✅ 合法：整函数统一为 A（默认，无需标注，全移交）
+extern "C" {
+    #[muslang::strategy(A)]
+    fn take_buffer(buf: *mut u8, len: usize);   // 接收后 MusLang 全权负责
+}
+
+// ❌ 非法：同一函数内 A / C 混用 → 编译错误 E_FFI_MIXED_STRATEGY
+extern "C" {
+    fn bad(buf:  *mut u8,                 // 无标注 → 默认 A
+          ctx:  *const Context  #[muslang::borrow]);  // 显式 C → 冲突
+}
+```
+
+**函数级原子性的理由**：调用方在一次 FFI 调用中只需记住**一套**释放规则，避免出现「第一个参数你 free、第二个参数你别碰」的心智负担与审计盲区。这与 P1「零隐藏控制流」、P3「类型即安全边界」一致——归属信息**显式落在签名上**。
+
+**推论（须明确，避免后续歧义）**：
+
+1. **混合生命周期的 API 必须拆函数**——若一个 API 天然需要混合语义（如「输入 buffer 归调用方、输出对象归被调用方」），拆为两个 `extern "C"` 函数，各自选 A 或 C；不允许在同一签名内并列两种策略；
+2. **跨边界借用仅 C 策略支持**——`#[muslang::borrow]` / `#[muslang::borrow_mut]` 表示调用期临时借用、MusLang 侧保留所有权；A 策略下**不存在借用**，移交即不可再触碰；
+3. **回调（C → MusLang）统一走 C 策略**——C 侧长期持有句柄后回调 MusLang 的场景，句柄归属须由 `#[muslang::ret]` / `#[muslang::take]` 显式声明，禁止 A 策略下的「C 回调后又交还」模式；
+4. **B（`Arc`）不受函数级一致性约束**——`Arc<T>` 本身即为跨语言共享的显式句柄（`Arc::into_raw` 产生 `*const T`、`Arc::from_raw` 回收），选用 B 即表示「双方共享、谁最后用完谁 drop」；但 B **须**配对 `arc_drop`，否则 leak。B 为 P1，MVP 不强制实现。
+
+##### 3.8.3 借用安全跨越边界
+
+借用检查为**编译期**机制，生成代码**无运行时 borrow tracker**；因此跨 `.so` 的借用本质是**约定**而非可检查项：
+
+- **C 策略 + `#[muslang::borrow]`**：MusLang 侧在调用期间保证借用有效（编译期 NLL），C 侧拿到裸指针后**编译器无法约束其用法**——属「约定安全」，须由 §3.2.3.1 的 FFI 审计清单记录并在 `unsafe_examples/` 中覆盖；
+- **A 策略**：移交后 MusLang 侧**立即失效**该句柄（类型系统将其视为 moved），C 侧为唯一所有者——这是唯一可被借用检查器**实质保证**的跨边界模式；
+- **`#[repr(C)]` 类型跨边界**：布局与 C 一一对应（见 D-8 双 runtime 表），无需借用转换，是「借用安全」的最简情形。
+
+> **结论**：要借用检查真正生效 → 用 A（严格移交）；要灵活共享 → 用 C（标注 + 约定 + 审计）。二者在函数级不混用，是安全与灵活的明确分界。
+
+##### 3.8.4 分配器桥接：`MusAllocator::from_c`
+
+为使「MusLang 分配的对象能被 C 侧 `free`」与「C 分配的对象能被 MusLang 的 `Box` 接管」**deallocator 配对**，要求 MusLang 侧**所有堆分配经统一 `MusAllocator`**，并提供 C 侧对接：
+
+```rust
+// 标准库接口（FR-021，P0）
+pub trait Allocator {
+    fn alloc(&self, layout: Layout) -> Result<*mut u8, AllocError>;
+    fn dealloc(&self, ptr: *mut u8, layout: Layout);
+}
+
+impl MusAllocator {
+    /// 用 C 的 malloc/free 作为 MusLang 的分配器 → MusLang 分配的对象可被 C 侧 free
+    pub fn from_c(malloc: unsafe fn(usize) -> *mut c_void,
+                  free:   unsafe fn(*mut c_void)) -> Self;
+}
+```
+
+- **rt-c 默认对接 libc 的 `malloc/free`**（见 D-10），故 MusLang 的 `Box<T>` 在 rt-c 侧分配的对象，C 侧可直接 `free`——**deallocator 一致，无 double-free**；
+- **若 C 侧用自定义 allocator**（如 jemalloc、分区池），须在 `extern "C"` 块中通过 `MusAllocator::from_c` 显式桥接，**双方必须配对同一个 allocator**；配对失败 → 编译期警告 `W_FFI_ALLOCATOR_MISMATCH`（可由 `--forbid-unsafe-allocator` 升为错误）；
+- **L1 core（无 libc）**：由 `no_std` 显式分配器（bump / pool）接管，`from_c` 不可用，跨 `.so` 移交仅支持 A 策略 + `#[repr(C)]` 类型。
+
+##### 3.8.5 清理逻辑归属（与 §3.2.3.1 衔接）
+
+`defer` / `errdefer` 的清理**必须在资源所有者的那一侧执行**：
+
+- 对象经 A 策略移交给 C → **MusLang 侧不得再 `defer` 关闭它**；关闭责任随所有权转移；
+- 对象经 C 策略 `#[muslang::ret]` 返回给 C → C 侧负责，`defer` 仅在 C 侧（C 的 `defer` / `goto err`）；
+- **跨边界对象的析构不得在两侧都注册**——否则 double-drop / use-after-free。编译器在 HIR FFI 校验 pass 中检查「移交方是否在 `defer` 中仍引用已移交句柄」，违反报 `E_DEFER_USED_AFTER_TRANSFER`（属 D-12 错误码体系）。
+
+##### 3.8.6 编译期校验汇总（HIR FFI 校验 pass）
+
+| 校验项 | 错误码 | 说明 |
+|---|---|---|
+| 同函数 A / C 策略混用 | `E_FFI_MIXED_STRATEGY` | §3.8.2 核心规则 |
+| 未标注参数（非 A 策略上下文） | `E_FFI_MISSING_ATTRIBUTE` | C 策略须逐参数标注 |
+| `#[muslang::borrow]` 标注于非指针类型 | `E_FFI_BAD_ATTRIBUTE` | 仅裸指针可用借用标注 |
+| 移交方在 `defer` 中仍引用已移交句柄 | `E_DEFER_USED_AFTER_TRANSFER` | 与 §3.2.3.1 联动 |
+| Allocator 配对失败 | `W_FFI_ALLOCATOR_MISMATCH`（可升级为错误） | §3.8.4 |
+| B（`Arc`）未配对 `arc_drop` | `W_ARC_LEAK`（P1，动态检测可选） | §3.8.1 |
+
+错误码固定、文档化，纳入 D-4 CI 门禁与 `--emit audit` 审计清单（每个跨边界调用点记录策略、归属、allocator 配对情况）。
+
+##### 3.8.7 与 Rust FFI 的对应关系（供实现参照）
+
+| MusLang | Rust FFI 等价 | 说明 |
+|---|---|---|
+| A：`#[muslang::strategy(A)]` | `Box::into_raw` / `Box::from_raw` | 移交即 moved，两侧不共享 |
+| C：`#[muslang::borrow]` | `&T` / `&mut T` 穿过 `extern "C"` | 调用期借用约定 |
+| C：`#[muslang::take]` | 接收 ` *mut T`，接管所有权 | 同 `Box::from_raw` |
+| C：`#[muslang::ret]` | 返回 ` *mut T`，调用方负责 | 同 `Box::into_raw` |
+| B：`Arc::into_raw` / `from_raw` | `Arc::into_raw` / `Arc::from_raw` | 引用计数跨语言 |
+
+> 实现优先级：**A 策略（P0，M1）→ C 策略（P0，M1，含属性解析 + 审计清单）→ B（P1，随 `std::sync`）**。C++ `std::shared_ptr` 跨边界映射**推至 1.0**（见 §3.7.2 C++ 推迟清单），v0.4.1 不承诺。
 
 ---
 
@@ -934,6 +1114,11 @@ docs/
 - [ELF 规范](https://refspecs.linuxfoundation.org/elf/elf.pdf)
 - [MusKitty 仓库](https://github.com/Ink-dark/MusKitty)
 - [The Error Model Convergence (matklad)](https://matklad.github.io/2025/12/29/second-error-model-convergence.html)
+- [Zig 官方文档：`defer` / `errdefer` 语义（defer 正常路径执行、errdefer 仅错误路径、LIFO）](https://ziglang.org/documentation/master/)
+- [Zig 概述：`defer` / `errdefer` 资源管理定性](https://ziglang.com.cn/)
+- [Rust Internals：Asynchronous Destructors（取消 = Drop 触发、取消仅发生在 `.await` 点、无 async Drop）](https://internals.rust-lang.org/)
+- [Huawei Trusted Programming：Rust Async Drop 编译器实现推进（async Drop 仍未稳定）](https://github.com/)
+- [Tokio 实践：cancel safety 与 Future 丢弃语义（协作式取消、`select!` 输家被 drop）](https://docs.rs/tokio/)
 
 ### 15.2 术语表
 
@@ -955,7 +1140,9 @@ docs/
 | v0.1 | 2026-08-30 | 初稿 | 墨染柒 |
 | v0.2 | 2026-08-30 | 补充链接器章节（§3.5）、muslink 设计、更新时间线 | 墨染柒 |
 | v0.3 | 2026-09-01 | **全面完善**：① 新增设计原则（§1.4）；② 新增类型系统章节（§3.2）；③ 新增错误处理规范（§5）；④ 新增测试策略（§6）；⑤ 补充编译器架构图（§3.4.1）；⑥ 补充 `@cImport` 技术规范（§3.4.2）；⑦ 补充 muslink 技术规范（§3.5.1）；⑧ 补充异步模型与 Zig 新 Io 模型关系（§3.6.1）；⑨ 完善安全模型（§4.3）；⑩ 完善风险表（§11）；⑪ 开放问题补充分析框架（§12）；⑫ 新增文档体系（§13）；⑬ 新增治理与版本管理（§14）；⑭ 补充术语表（§15.2） | Yuanbao (AI) |
-| v0.4 | 2026-09-04 | **架构决策落地**：① 定位改为「类 Rust，不保证源码兼容」（§1.1，D-1）；② 新增架构决策记录（§3.7）含互操作架构、共享方言+HIR、D-0~D-11 决策表、双 runtime（muslang-rt / muslang-rt-c）、std 三层按需链接+sys 三端可扩展；③ 补充 `unsafe` 等价判定与 CI 门禁（§3.2.1 K3，D-4）；④ 默认后端由 Zig 改为 C99（FR-032、§3.4.1、§5.3，D-2）；⑤ 异步模型改为后端无关实现（§3.6.1）；⑥ 二进制体积口径定稿为 L1 core 裸启动 `<8KB`（§4.1、§10）；⑦ 新增 M1-0 决策冻结阶段与 v0.4 裁剪建议（§8） | Yuanbao (AI) & 墨染柒 |
+| v0.4 | 2026-09-04 | **架构决策落地**：① 定位改为「类 Rust，不保证源码兼容」（§1.1，D-1）；② 新增架构决策记录（§3.7）含互操作架构、共享方言+HIR、D-0~D-11 决策表、双 runtime（muslang-rt / muslang-rt-c）、std 三层按需链接+sys 三端可扩展；③ 补充 `unsafe` 等价判定与 CI 门禁（§3.2.1 K3，D-4）；④ 默认后端由 Zig 改为 C99（FR-032、§3.4.1、§5.3，D-2）；⑤ 异步模型改为后端无关实现（§3.6.1）；⑥ 二进制体积口径定稿为 L1 core 裸启动 `<8KB`（§4.1、§10）；⑦ 新增 M1-0 决策冻结阶段与 v0.4 裁剪建议（§8） | Yuanbao (AI) |
+| v0.4.1 | 2026-09-04 | **语义定稿**：① `defer` 与 `?`、async 取消交互规则（§3.2.3.1，D-12）：`defer`/`errdefer` 分离（错误路径仅 `errdefer`、LIFO）、`?` 提前返回只跑 `errdefer`、`async fn` 取消仅在 `.await` 点（协作式）、`defer` 禁止 `.await`（异步清理须显式 `close().await`）、5 类错误码，并附 Zig 官方文档 + Rust Internals + Tokio 引用（§15.1）；② 跨 `.so` 所有权移交协议 A+C 混合、函数级策略一致性（§3.8，D-7 定稿）：A 严格移交 / C 标注协议（`#[muslang::strategy]`、`#[muslang::borrow/take/ret]`）/ B `Arc` 为 P1 可选、同函数禁止 A/C 混用、混合生命周期须拆函数、回调走 C、`MusAllocator::from_c` deallocator 配对、清理归属与 §3.2.3.1 衔接、6 项 HIR FFI 校验错误码、Rust FFI 对应关系表 | Yuanbao (AI) & 墨染柒 |
+
 ---
 
 > **MusLang — Rust 的壳，Zig 的灵魂，类似 Go 的网络，MusCat 的心脏。**
