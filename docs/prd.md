@@ -3,9 +3,9 @@
 > **项目代号**：MusLang-Qomolangma
 > **仓库**：https://gitee.com/moranqidarkseven/MusLang
 > **所属生态**：MusCat 浏览器的原生系统编程语言
-> **文档版本**：v0.4.2（语言机制细化）
+> **文档版本**：v0.4.3（自举路径 + 包管理与软件分发）
 > **创建日期**：2026-08-30
-> **更新日期**：2026-09-04
+> **更新日期**：2026-09-05
 > **作者**：墨染柒（Ink-dark）
 > **状态**：评审中
 > **变更记录**：
@@ -15,6 +15,7 @@
 > - v0.4（2026-09-04）：架构决策落地（§3.7 架构决策记录、后端 C99 默认、双 runtime、std 按需链接 + 三端、二进制体积口径定稿、M1-0 决策冻结）
 > - v0.4.1（2026-09-04）：语义定稿——① `defer` 与错误传播 / 异步取消的交互规则（§3.2.3.1，D-12）；② 跨 `.so` 所有权移交协议 A+C 混合、函数级策略一致性（§3.8，D-7 定稿）；③ 配套引用补充（§15.1）
 > - v0.4.2（2026-09-04）：语言机制细化——① 泛型单态化策略：HIR 层单态化 + 递归深度硬限 25 层、超限为语法错误（§3.9，D-13）；② 生命周期标注策略：函数签名默认全省略、推断失败给建议报错、结构体/枚举不可省、HRTB 推迟 1.0、FFI 边界强制标注（§3.10，D-14）；③ C++ 互操作边界定稿：Itanium ABI、异常禁止跨越边界、RTTI 不支持、模板须 C++ 侧预实例化（§3.11，D-15）
+- v0.4.3（2026-09-05）：工程路径定稿——① 自举路径与 staging 策略（§3.12，D-16）：M1 部分自举（前端 MusLang 写 + 后端 Rust 写）、Stage 0 宿主语言 = Rust、先编译 std 再编译编译器、确定性输出（可重现构建）推迟至 M2；② 包管理器（§3.13，D-17）：M1 = Cargo 复用（不造轮子），远期 = `mktplace`（谐音 marketplace，MusLang 源码级包管理 + 工作区编排，设计参考 hypo 分发安全模型 + pets_tools 编排能力）；③ 软件分发（§3.14，D-18）：hypo 为独立的系统级软件分发工具，`mktplace` 管"源码/依赖/构建"、hypo 管"产物分发部署"，二者各司其职；§3.7.1 决策表追加 D-16/D-17/D-18，§12.3 重写为三阶段
 
 ---
 
@@ -24,7 +25,7 @@
 
 **MusLang 是一门语法以 Rust 为参照（不保证源码级兼容）、安全模型以 Zig 的类型区分取代 `unsafe` 块、内置 Go 级网络标准库、编译产物与 Zig 同级轻量的系统编程语言。** Rust、C/C++ 三方通过**共享内存布局规范与统一 HIR** 实现编译期无损互操作（无运行时 FFI 层）；标准库按子系统拆分为独立 crate、按需链接，并通过 `sys` 层支持 Linux / macOS / Windows 三端扩展（当前仅 Linux 实装）。MusLang 是 MusCat 生态全栈自研的最后一环——从语言到编译器到链接器到内核到浏览器，全栈自主可控。
 
-> **说明（v0.4.2）**：本段仅反映已冻结/已决策的架构方向，详见 §3.7「架构决策记录」（D-0~D-15）。尚未决策的事项（自举 staging、包管理器、WASM、分配器模型、async 运行时绑定、调试信息等）仍见 §12，保持「待定」不动。
+> **说明（v0.4.3）**：本段仅反映已冻结/已决策的架构方向，详见 §3.7「架构决策记录」（D-0~D-18）。尚未决策的事项（WASM、分配器模型、async 运行时绑定、调试信息、comptime 元编程等）仍见 §12，保持「待定」不动；自举 staging、包管理器已于 v0.4.3 定稿（§3.12、§3.13）。
 
 ### 1.2 核心价值：三角融合
 
@@ -299,7 +300,7 @@ fn logging_middleware(next: impl Handler) -> impl Handler {
 | FR-034 | C ABI 中间层：生成 C 源码 + 头文件 | P0 |
 | FR-035 | 增量编译：秒级，对标 Zig | P1 |
 | FR-036 | 交叉编译：LoongArch64/ARM64/RISC-V/x86_64 | P1 |
-| FR-037 | **自举**：编译器用 MusLang 自身编写，自持闭环 | P2 |
+| FR-037 | **自举**：编译器用 MusLang 自身编写，自持闭环（**M1 部分自举**：前端 MusLang 写、后端 Rust 写，见 §3.12 / D-16；完整自举推迟至 M2/M3） | P2 |
 
 #### 3.4.1 编译器架构
 
@@ -418,6 +419,9 @@ MusLang async/await  ──编译期──→  状态机 struct
 | D-13 | 泛型单态化 | **HIR 层单态化**（后端只见到单态后具体函数）；**递归单态化深度硬限 25 层，超限 = 语法错误**；不引入 `dyn` 类型擦除；配合按需链接 + `--gc-sections` 控制膨胀 | 已定（v0.4.2） |
 | D-14 | 生命周期标注 | **方案 B**：函数签名默认全省略、推断失败给建议报错；结构体/枚举**不可省**；`'static` 保留；**HRTB 推迟 1.0**；`extern` FFI 边界强制显式标注 | 已定（v0.4.2） |
 | D-15 | C++ 互操作边界 | **1.0 边界定稿**：vtable = **Itanium C++ ABI**；**异常禁止跨越 FFI 边界**（编译器拒绝 throwing 签名）；**RTTI 不支持**；**模板须 C++ 侧预实例化**（MusLang 只见到具体类型） | 已定（v0.4.2） |
+| D-16 | 自举路径（staging） | **M1 部分自举**：编译器前端（lexer/parser/AST/类型检查）用 MusLang 编写，后端（C99 代码生成 / LLVM 桥接）仍用 Rust 编写；**Stage 0 宿主语言 = Rust**；构建顺序**先编译 std 再编译编译器**（std 依赖 HIR 单态化 D-13 完整支持）；**确定性输出（可重现构建）推迟至 M2**；完整自举（含 C99 后端）推迟至 M2/M3 | 已定（v0.4.3） |
+| D-17 | 包管理器 | **M1 = Cargo 复用**（不造轮子，`.mus` 作为 Rust 受限子集 + `build.rs` 驱动 `muslangc`）；**远期 = `mktplace`**（谐音 marketplace，MusLang 源码级包管理器 + 工作区编排器），设计参考 **hypo 的分发安全模型** + **pets_tools 的工作区编排能力**；`mktplace` 与 hypo **各司其职**（见 §3.13、§3.14） | 已定（v0.4.3） |
+| D-18 | 软件分发 | **hypo 为独立的系统级软件分发工具**（非构建时包管理器）；MusLang 编译产物经 hypo 做系统级分发部署，**hypo 与 `mktplace` 分工明确**：`mktplace` 管"源码怎么组织、依赖怎么拉、怎么构建"，hypo 管"编好的二进制/库怎么分发部署到目标机" | 已定（v0.4.3） |
 
 #### 3.7.2 互操作：编译期机制（D-3）
 
@@ -760,11 +764,273 @@ impl MusAllocator {
 
 - **与 D-3（共享方言+HIR）**：C++ 的虚函数 / 继承语义在方言层 lowering 为 MusLang trait 对象，vtable 布局须与 Itanium 一致，由 HIR 单态化（§3.9）统一处理；
 - **与 D-7（所有权移交，§3.8）**：C++ 对象跨边界一律走 **A（严格移交）**，`std::shared_ptr` 等引用计数类型不跨边界（见上表）；
-- **与 D-4（unsafe 等价）**：所有 `extern "C++"` 声明自动纳入 FFI 审计清单（§4.3.2），`shared_ptr`/`unique_ptr` 的析构约定须显式标注。
+
 
 ---
 
-## 4. 非功能需求
+### 3.12 自举路径与 staging 策略（D-16，v0.4.3）
+
+> **问题**：自举（bootstrap）是编译器项目的"成年礼"——能否用 MusLang 写 `muslangc` 并编译通过、跑起来，决定语言是否真正自洽。但**完整自举（含 C99 后端）工作量极大**，M1 时间窗（2026 Q1-Q2）难以承受；且 std 自身依赖 HIR 单态化（D-13）完整支持，Stage 0 必须具备完整语言实现。**本小节定义分阶段自举路径，属工程规划、不影响语言语义。**
+
+#### 3.12.1 经典三阶段
+
+| 阶段 | 做什么 | 产物 |
+|---|---|---|
+| **Stage 0** | 用宿主语言（Rust）写第一个 `muslangc` | 能编译 MusLang → C99 的引导编译器 |
+| **Stage 1** | 用 MusLang 写 `muslangc` 源码，用 Stage 0 编译它 | 自举编译器二进制（由 MusLang 代码生成） |
+| **Stage 2** | 用 Stage 1 二进制重新编译同一份 MusLang 源码 | 验证产出一致性（比特级或语义级） |
+
+**Stage 2 通过 = 自举完成**，语言可以"自己养自己"（§10 成功指标"自持"）。
+
+#### 3.12.2 核心难点（MusLang 特有）
+
+1. **Stage 0 须实现完整语言**。Stage 1 的 MusLang 编译器源码**必然使用 MusLang 全部核心特性**（泛型、`defer`/`errdefer`、`?`、模块系统、可能还有 `unsafe` 类型标注），故 Stage 0 必须实现完整 MusLang——**不能只是子集**，否则 Stage 1 源码用到某特性 → Stage 0 不认识 → 编译失败。
+
+2. **std 依赖链**。编译器需要 `Vec`/`HashMap`/`String`、`fs` 文件 I/O、`Result<T,E>` 到处皆是，可能还需 `alloc`（FR-021）。若 std 用 MusLang 编写（合理假设），自举链为：
+   ```
+   Stage 0 编译 std 源码 → 得到 std 的 C99 产物
+   Stage 0 编译 muslangc 源码（依赖 std）→ 链接 std 产物 → 得 Stage 1
+   ```
+   **std 编译又依赖 HIR 单态化（D-13）完整支持**——Stage 0 必须把泛型单态化做对，否则 `Vec<T>` 在 std 里无法展开。此为 D-13 与 D-16 的直接耦合。
+
+3. **泛型重灾区与膨胀**。编译器是泛型重度使用者（`AstNode<T>`、`ParseResult<T>`、`Vec<Token>`、`HashMap<Symbol, Def>`…），全部单态化为 C99 产物可能膨胀至数 MB。**须依赖 D-13 的三层缓解（按需链接 + C 内联 + `--gc-sections`）**，并可能要求 std 拆分 crate 以控制单态爆炸。
+
+4. **可重现构建（Reproducible Build）**。Stage 1 与 Stage 2 产出应一致，但 C99 后端生成的 C 代码可能含临时变量名计数器、单态函数哈希命名（`Vec_i32_0xabc`）、时间戳/路径名，导致 Stage 1 ≠ Stage 2。**须定义"确定性输出"规范（见 §3.12.4）。**
+
+#### 3.12.3 分阶段方案（D-16 定稿）
+
+**务实路线：M1 部分自举，完整自举推迟至 M2/M3。** 具体：
+
+| 阶段 | M1 目标 | M2/M3 目标 |
+|---|---|---|
+| Stage 0 | Rust 写的**完整**引导编译器（覆盖 MusLang 核心全集：泛型 + `defer`/`errdefer` + `?` + 模块 + HIR 单态化 D-13） | 完善至 100% 语言特性（含 C++ `extern`、HRTB 等） |
+| Stage 1 | MusLang 写**编译器前端**（lexer/parser/AST/名称解析/类型检查/借用检查），**后端（C99 代码生成、LLVM 桥接）仍用 Rust** | 完整编译器（含 C99 后端）用 MusLang 编写 |
+| Stage 2 | **M1 不做**（见 §3.12.4） | 完整自举验证 + 可重现构建 |
+
+**选择"部分自举"的四点理由**：
+
+1. **M1 核心是"能编译出 L1 `<8KB` 的程序"（D-11），不是"语言能自举"**——部分自举即可验证语言设计自洽；
+2. **完整自举工作量 6~12 个月**，M1 时间窗扛不住；
+3. **前后端分离**使"前端 MusLang 写"能尽早验证语言可用性，后端可沿用成熟的 Rust 生态（inkwell/LLVM crate）；
+4. **与 D-17（Cargo 复用）协同**——M1 构建系统本身就是 Cargo，Stage 0/1 混合 Rust+MusLang 的 workspace 编排天然可行。
+
+#### 3.12.4 四项工程决策（v0.4.3 定稿）
+
+| # | 决策 | 结论 |
+|---|---|---|
+| 1 | **M1 自举目标** | **部分自举**：前端 MusLang 写 + 后端 Rust 写（见 §3.12.3 表格） |
+| 2 | **Stage 0 宿主语言** | **Rust**（成熟生态、LLVM 绑定稳定；不选 C 因其开发效率低，不选 Zig 因其未 1.0 且 async 模型漂移，见 D-2） |
+| 3 | **std 自举顺序** | **先编译 std 再编译编译器**（编译器内嵌 minimal runtime 方案**不采用**——std 必须独立可测） |
+| 4 | **确定性输出** | **M2 再做**（M1 不要求 Stage 1 == Stage 2 比特级一致，仅要求 Stage 1 能正确编译通过） |
+
+**确定性输出的 M2 要求（预定义，便于 M1 不踩坑）**：
+- C99 后端须生成**确定性 C 代码**：临时变量名去随机化、单态函数命名用**稳定类型哈希**（不含时间戳/路径）；
+- 引入 `muslangc --reproducible` 标志，固化排序（哈希表遍历顺序、section 顺序）；
+- Stage 2 验证目标：**同一份 MusLang 源码，Stage 1 与 Stage 2 产出二进制 SHA-256 一致**（允许白名单差异：debug 路径、嵌入时间戳）。
+
+#### 3.12.5 与既有章节的衔接
+
+- **§3.4 / FR-037**：自举属 P2（完整自举），本小节将 P2 拆为"M1 部分（前端）+ M2/M3 完整"，与 §8 阶段三 M3-1~M3-3 对齐；
+- **§3.9（D-13）**：std 编译依赖 HIR 单态化完整支持，Stage 0 必须先实现 D-13（含 25 层限制、`E_MONO_*` 错误码）；
+- **§3.13（D-17）**：`mktplace` 远期需支持"MusLang 编写的编译器作为可构建包"的工作区编排；
+- **§10**：成功指标"自持"对应 Stage 2 通过，验收口径为 Stage 2 产出与 Stage 1 **语义等价**（M1 放宽为"能编译通过"）。
+
+> **风险提示**：若 M1 实测发现"前端 MusLang 写"受限于语言缺陷反复返工，可退化为"M1 仅写 lexer/parser（无泛型），M2 再迁移类型检查"——但**不建议作为首选**，因会推迟语言设计验证。
+
+---
+
+### 3.13 包管理器（D-17，v0.4.3）
+
+> **问题**：MusLang 是独立语言（自有编译器、自有 std、自有模块系统），但 M1 阶段不愿投入数年造一个完整包管理器（依赖解析、版本锁定、registry、构建图……）。Cargo 现成可用，但**Cargo 为 Rust 设计**——如何让 `.mus` 文件搭上 Cargo 的车？远期又该如何走向纯自主？本小节定稿 M1 与远期的包管理策略，**明确 `mktplace` 的定位及其与 hypo 的关系**。
+
+#### 3.13.1 M1：复用 Cargo（方案 A，不造轮子）
+
+**做法**：`muslangc` 作为 Cargo `build.rs` 驱动的命令行工具，Cargo 管依赖/版本，`build.rs` 调用 `muslangc` 编译 `.mus` → `.c`，再由 Cargo 的 `cc` crate 把 C 编成静态库。
+
+```toml
+# Cargo.toml（MusLang 应用，M1）
+[package]
+name = "my-mus-app"
+build = "build.rs"
+
+[build-dependencies]
+muslangc = "0.1"  # MusLang 编译器作为 build dep
+```
+
+```rust
+// build.rs
+fn main() {
+    std::process::Command::new("muslangc")
+        .args(&["compile", "src/main.mus", "-o", "target/mus/main.c"])
+        .status().unwrap();
+    println!("cargo:rustc-link-search=target/mus");
+}
+```
+
+**选用 Cargo 的六点理由**：
+
+| 维度 | 收益 |
+|---|---|
+| 依赖版本 / lockfile | 免费获得 Cargo 全套（`Cargo.lock`、语义化版本、features 门控） |
+| 发布 / registry | 可直接 `cargo publish` 到 crates.io（MusLang 库作为特殊 crate） |
+| 增量编译 | `cargo build` 增量 + `muslangc` 可按需支持 mtime/hash 增量 |
+| 信创离线 | `cargo vendor` 把整个依赖树打包到本地目录，离线构建零网络 |
+| 心智模型 | Rust 开发者（核心用户群）零额外学习 |
+| 实现成本 | `muslangc` 只需是命令行工具（读 `.mus` → 写 `.c`），`build.rs` 负责调用 |
+
+**M1 已知限制（接受）**：
+- `build.rs` 的增量支持有限，可能全量重编 `.mus`——**M1 全量，M2 再做 `muslangc` 增量**（与 D-16 确定性输出同期）；
+- 依赖粒度：MusLang 库发布为**独立的 crates.io crate**（每个库一个 crate），std 组件统一归入 `muslang-std` 大 crate（features 控制开哪些模块），**不采用"一个大 crate 包含所有 std"**；
+- 本地 registry mirror：`cargo vendor` + 私有 registry 满足信创离线，**M1 不额外开发分发服务**。
+
+#### 3.13.2 远期：`mktplace`（谐音 marketplace）
+
+> **名称**：`mktplace`（读作 /ˈmɑːkɪt.pleɪs/，谐音 **marketplace**），非 `muspm` 或其他。
+
+**定位**：MusCat 生态中 **MusLang 源码级的包管理器 + 工作区编排器**——
+
+> **借鉴 hypo 的分发安全模型**（去中心化 registry、依赖锁定、GPG 签名、SBOM、构建沙箱）+ **pets_tools 的工作区编排能力**（多仓拓扑、并行构建、`repos.toml`、WPT 基线对比、CCache 式构建缓存），但 **`mktplace` 是独立的语言包管理器**，并非把 hypo 改个名。
+
+**职责边界**：
+
+| 能力 | 来源 | 说明 |
+|---|---|---|
+| 依赖解析 / 版本锁定 | hypo | SAT 求解、`mktplace.lock`、lockfile |
+| 去中心化 registry | hypo | `git+https` URL、离线 mirror、GPG 签名、SBOM |
+| 供应链安全 | hypo | 依赖锁定、签名验证、构建沙箱 |
+| 工作区编排（`repos.toml`） | pets_tools | 多仓拓扑、并行构建、WPT 基线 |
+| 构建图 + 缓存 | pets_tools | 增量构建、CCache 式缓存 |
+| 编译器驱动 | 共有 | 调用 `muslangc` + `muslink` |
+
+#### 3.13.3 三阶段演进
+
+```
+M1（2026 Q1-Q2）         过渡期                    v1.0+
+─────────────────       ──────────────            ──────────────────
+   Cargo + build.rs  ──►  Cargo 为主 +          ──►  mktplace 一步到位
+   muslangc 作为         mktplace 雏形试用         替代 Cargo + 吸收
+   build dep                                    pets_tools 编排能力
+                                                    │
+                    hypo 作为独立分发工具 ◄──────────┘
+                    （管产物分发，非源码包管理）
+```
+
+**迁移触发条件（量化门槛，避免"永远在等"）**——满足**全部**即触发 Cargo → `mktplace` 迁移：
+
+1. hypo 实现完整 lockfile + 离线 mirror + GPG 签名（三项全绿）；
+2. 至少 **20 个**真实 MusLang 包能用 `mktplace` 构建通过；
+3. 信创离线环境（UOS LoongArch64 / 银河麒麟 ARM64）下通过完整构建测试。
+
+#### 3.13.4 `mktplace` 与 hypo 的关系（关键澄清）
+
+> **hypo 是系统级软件分发工具（类似系统包管理器），不是构建时依赖管理器**——`mktplace` 与 hypo **各管各的**，二者协作但不重叠：
+
+| 工具 | 问题域 | 典型场景 |
+|---|---|---|
+| **`mktplace`** | **源码级**：怎么组织代码、怎么拉依赖、怎么构建 | `mktplace add net`、`mktplace build`、`mktplace workspace` |
+| **hypo** | **产物级**：编好的二进制/库怎么分发部署到目标机 | `hypo install muslang-std`、`hypo deploy my-app --target uos-loongarch64` |
+
+**示例协作流**：
+```
+源码(.mus) ──mktplace build──► 二进制/库 ──hypo package──► 系统级分发/部署
+                                  ▲                        ▲
+                              mktplace 管这                hypo 管这
+```
+
+**错误理解（须避免）**：❌ "hypo 成熟后变成 MusLang 的包管理器"——**错**。hypo 始终是独立的分发工具；`mktplace` 才是源码包管理器，只是**设计上参考了 hypo 的分发安全模型**。
+
+#### 3.13.5 决策表
+
+| # | 决策 | 结论 |
+|---|---|---|
+| 1 | M1 包管理 | **Cargo 复用**（方案 A，`build.rs` 驱动 `muslangc`） |
+| 2 | 增量编译 | **M1 全量**，M2 再做（`muslangc` 基于 mtime/hash） |
+| 3 | 依赖粒度 | 每个 MusLang 库独立 crates.io crate；std = `muslang-std` 大 crate + features |
+| 4 | 信创离线 | **`cargo vendor` 够用**（本地 mirror 推至 M2 / `mktplace` 阶段） |
+| 5 | 远期工具名 | **`mktplace`**（谐音 marketplace） |
+| 6 | `mktplace` 来源 | hypo 分发安全模型 + pets_tools 编排能力，**合并为单一工具** |
+| 7 | 迁移触发 | hypo lockfile+mirror+签名 + 20 个真实包 + 信创离线全绿 |
+
+#### 3.13.6 与既有章节的衔接
+
+- **§3.12（D-16）**：`mktplace` 需编排"MusLang 编写的编译器前端"这类包的构建，与自举 staging 协同；
+- **§3.14（D-18）**：hypo 负责产物分发，与 `mktplace` 分工（见 §3.13.4）；
+- **§12.3**：本节为 v0.4.3 重写版（原三方案对比保留为历史），**§12.3 现为「见 §3.13」的跳转**；
+- **§6.3 CI/CD**：`mktplace` 阶段需增加"依赖锁定 + SBOM 校验"门禁。
+
+> **命令空间约定**：`mktplace add | build | workspace | lock | vendor | publish`，与 `muslangc` / `muslink` 同前缀（`muslang-*` / `mktplace` / `hypo`），避免与系统包管理器冲突。
+
+---
+
+### 3.14 软件分发（D-18，v0.4.3）
+
+> **问题**：MusLang 编译产物的**系统级分发部署**（安装到目标机、依赖系统库、版本升级）由谁负责？本小节明确：**由 hypo 负责**，且与 §3.13 的 `mktplace`（源码包管理）严格分工。本小节为 **D-18 定稿**，M1 仅需"知晓 hypo 存在"，**不需实现集成**。
+
+#### 3.14.1 核心规则
+
+1. **hypo 是独立的系统级软件分发工具**，定位对标系统包管理器（如 `apt`/`dnf`/`pacman` 的现代化去中心化版本），**不是**构建时包管理器、**不是** `mktplace` 的别名。
+
+2. **分工矩阵**：
+
+   | 环节 | 工具 | 输入 | 输出 |
+   |---|---|---|---|
+   | 源码组织 / 依赖解析 | `mktplace` | `.mus` 源码 + `mktplace.toml` | 构建图 |
+   | 编译 / 链接 | `muslangc` + `muslink` | 构建图 | 二进制 / 库（`.o`/`.a`/ELF） |
+   | **系统级分发 / 部署** | **hypo** | 二进制 / 库 + `hypo-manifest` | 目标机可运行环境 |
+
+3. **MusLang 对 hypo 的契约**：
+   - 编译产物（ELF64 / 静态库）须符合 **FHS / LSB** 标准布局（`/usr/bin`、`/usr/lib`、`/etc`），便于 hypo 打包；
+   - 提供 `hypo-manifest.toml`：声明包名、版本、架构（`x86_64`/`aarch64`/`loongarch64`/`riscv64`）、依赖系统库、签名密钥；
+   - **L1 core（无 libc，见 D-11）产物**：hypo 分发能力**受限**——裸机/内核镜像由 `muslink` 直接产出，hypo 仅管"镜像打包与刷写描述"，不承诺完整依赖解析。
+
+4. **hypo 的分发安全模型（供 `mktplace` 参考，见 §3.13.2）**：
+   - 去中心化 registry（`git+https` URL，可指向 **Gitee** 私有仓库）；
+   - 依赖锁定（lockfile，可复现安装）；
+   - **GPG / 国密 SM2 签名**（信创场景用 SM2，对标 SM3/SM4，见 FR-016）；
+   - **SBOM（软件物料清单）** 生成，满足信创测评供应链审计（§10）；
+   - 构建沙箱（可复现构建，与 D-16 §3.12.4 确定性输出协同）。
+
+#### 3.14.2 与 `mktplace` 的边界示例
+
+```yaml
+# mktplace.toml（源码级，mktplace 管）
+name: my-mus-app
+version: 0.1.0
+dependencies:
+  - muslang-std = "0.4"
+  - muslang-net = "0.4"   # 由 mktplace 从 registry 拉取
+
+# hypo-manifest.toml（产物级，hypo 管）
+name: my-mus-app
+version: 0.1.0
+arch: [x86_64, aarch64, loongarch64]
+depends:
+  - glibc >= 2.28          # 系统库依赖，hypo 负责
+files:
+  /usr/bin/my-mus-app: target/release/my-mus-app
+signature: SM2:xxxx...
+```
+
+> **一句话**：`mktplace.toml` 里**只出现 MusLang 源码依赖**；`hypo-manifest.toml` 里**只出现系统级依赖与文件布局**。两者通过"编译产物"衔接，互不侵入。
+
+#### 3.14.3 M1 / 远期范围
+
+| 阶段 | hypo 集成 | 说明 |
+|---|---|---|
+| **M1（2026 Q1-Q2）** | ⚠️ **仅知晓，不集成** | 编译产物手工部署即可；`hypo-manifest.toml` 规格**预定义**（本节），但工具本身不实现 |
+| **M2（2026 Q3-Q4）** | 试点集成 | MusKitty 内核镜像通过 hypo 打包分发 |
+| **v1.0+** | 完整支持 | hypo + `mktplace` 双工具协同，信创离线 mirror 全绿 |
+
+#### 3.14.4 与既有章节的衔接
+
+- **§3.13（D-17）**：`mktplace` 管源码、hypo 管产物，**§3.13.4 为本节的具体化**；
+- **§3.5 / `muslink`**：静态链接产物（`.a`/ELF）是 hypo 分发的**输入**；
+- **§10 成功指标**："信创测评通过 100%"隐含 SBOM + 签名要求，由 hypo 承担；
+- **§12**：WASM、调试信息等仍待定，**不影响本节**（软件分发与这些项无耦合）。
+
+> **原则**：MusLang 自身**不内置包管理器也不内置分发器**——`mktplace`（源码）+ `hypo`（产物）构成双工具链，遵循 P6「C 是第一公民」精神：**优先复用成熟工具，仅在自主可控（信创）诉求下自建**。
+
+---
 
 ### 4.1 性能指标
 
@@ -1025,9 +1291,9 @@ tests/
 
 | 里程碑 | 交付物 | 验收标准 |
 |---|---|---|
-| M3-1 | MusLang 编译器 v0.2（MusLang 写，前端）| 能编译自身 AST + 类型检查 |
-| M3-2 | MusLang 编译器 v0.3（完整功能）| 全量功能等价 Rust 版本 |
-| M3-3 | **自持闭环**（v0.3 编译 v0.3）| 用 MusLang 版编译器重新编译自身，输出一致 |
+| M3-1 | MusLang 编译器 v0.2（MusLang 写，**前端**；后端仍 Rust，见 §3.12 D-16）| 能编译自身 AST + 类型检查，通过 Stage 1 构建 |
+| M3-2 | MusLang 编译器 v0.3（**完整功能，含 C99 后端 MusLang 化**）| 全量功能等价 Rust 版本，Stage 1 == Stage 2 语义等价（确定性输出，见 §3.12.4）|
+| M3-3 | **自持闭环**（v0.3 编译 v0.3，Stage 2）| 用 MusLang 版编译器重新编译自身，产出与 Stage 1 **SHA-256 一致**（可重现构建）|
 | M3-4 | 信创测评送测 | 通过 100% 测试用例 |
 | M3-5 | 100% 信创替代达标 | 工具链零外部语言依赖 |
 | M3-6 | `muslink` v0.1（MusLang 写的极简 ELF64 链接器）| 能链接 hello world + 内核镜像 |
@@ -1141,7 +1407,7 @@ fn main() {
 2. `comptime` 需要在自举编译器中实现完整解释器，复杂度极高
 3. Zig 的 comptime 本身仍在演进（0.15+ 大幅重构），不宜过早绑定
 
-**决策节点**：M3-1 完成后（自举编译器稳定），重新评估。
+**决策节点**：**M3-3 自持闭环达成后**（自举编译器稳定、确定性输出可用，见 §3.12 D-16 / §8 M3-3），重新评估 `comptime`。此节点与 §3.12.4「确定性输出推迟至 M2」协同——comptime 解释器本身也需可重现执行。
 
 ### 12.2 WASM 后端
 
@@ -1156,7 +1422,11 @@ fn main() {
 
 **决策节点**：M2-3（MusKitty Layer 6 JS 引擎适配）启动时评估。
 
-### 12.3 包管理器设计
+### 12.3 包管理器与软件分发（v0.4.3 已定，见 §3.13、§3.14）
+
+> **v0.4.3 状态**：本节原「三方案对比」已于 v0.4.3 **定稿为 D-17（包管理器）+ D-18（软件分发）**，详见 §3.13（`mktplace`）、§3.14（hypo）。以下仅保留历史方案对比供追溯，**新设计以 §3.13 / §3.14 为准**。
+
+**历史方案对比（阶段一评审用，已归档）**：
 
 | 维度 | 方案 A：复用 Cargo | 方案 B：自研（类 Zig build） | 方案 C：Git 依赖（类 Zig） |
 |---|---|---|---|
@@ -1166,9 +1436,12 @@ fn main() {
 | 信创适配 | ⚠️ Cargo 依赖网络 | ✅ 完全可控 | ✅ 离线可用 |
 | 版本管理 | ✅ 成熟 | ❌ 需自建 | ⚠️ 手动管理 |
 
-**推荐方向**：阶段一采用 **方案 A（复用 Cargo）**——MusLang 语法与 Rust 100% 一致，可直接复用 Cargo 构建系统（将 `.mus` 文件视为 Rust 的某种"受限子集"或使用 build script 调用 muslangc）。阶段三信创纯自主时，切换到 **方案 B**。
+**定稿结论（D-17 / D-18）**：
+- **M1 = Cargo 复用**（原方案 A），`build.rs` 驱动 `muslangc`；
+- **远期 = `mktplace`**（谐音 marketplace），参考 hypo 分发安全模型 + pets_tools 编排能力，**与 hypo 各司其职**；
+- **hypo = 独立的系统级软件分发工具**，非构建时包管理器（D-18）。
 
-**决策节点**：M1-7 完成后评估包管理器需求。
+**迁移触发条件**：hypo lockfile+mirror+签名全绿 + 20 个真实包 + 信创离线全绿（详见 §3.13.3）。
 
 ### 12.4 调试信息格式
 
@@ -1296,6 +1569,13 @@ docs/
 | Freestanding | 不依赖任何操作系统服务的编译目标（如内核、裸机） |
 | GC-sections | 链接器死代码消除（Garbage Collection of Sections） |
 
+| Stage 0 | 用宿主语言（Rust）编写的引导编译器，须实现完整 MusLang 语言 |
+| Stage 1 | 用目标语言（MusLang）编写的编译器（M1 = 前端），由 Stage 0 编译 |
+| Stage 2 | 用 Stage 1 二进制重新编译同一份源码，验证自举一致性 |
+| `mktplace` | MusLang 源码级包管理器 + 工作区编排器，名称谐音 marketplace |
+| hypo | 独立的系统级软件分发工具，与 `mktplace` 各司其职 |
+| 可重现构建（Reproducible Build） | 同一源码多次构建产出比特一致的二进制，含确定性输出规范 |
+
 ### 15.3 变更记录
 
 | 版本 | 日期 | 变更内容 | 作者 |
@@ -1306,6 +1586,8 @@ docs/
 | v0.4 | 2026-09-04 | **架构决策落地**：① 定位改为「类 Rust，不保证源码兼容」（§1.1，D-1）；② 新增架构决策记录（§3.7）含互操作架构、共享方言+HIR、D-0~D-11 决策表、双 runtime（muslang-rt / muslang-rt-c）、std 三层按需链接+sys 三端可扩展；③ 补充 `unsafe` 等价判定与 CI 门禁（§3.2.1 K3，D-4）；④ 默认后端由 Zig 改为 C99（FR-032、§3.4.1、§5.3，D-2）；⑤ 异步模型改为后端无关实现（§3.6.1）；⑥ 二进制体积口径定稿为 L1 core 裸启动 `<8KB`（§4.1、§10）；⑦ 新增 M1-0 决策冻结阶段与 v0.4 裁剪建议（§8） | Yuanbao (AI) |
 | v0.4.1 | 2026-09-04 | **语义定稿**：① `defer` 与 `?`、async 取消交互规则（§3.2.3.1，D-12）：`defer`/`errdefer` 分离（错误路径仅 `errdefer`、LIFO）、`?` 提前返回只跑 `errdefer`、`async fn` 取消仅在 `.await` 点（协作式）、`defer` 禁止 `.await`（异步清理须显式 `close().await`）、5 类错误码，并附 Zig 官方文档 + Rust Internals + Tokio 引用（§15.1）；② 跨 `.so` 所有权移交协议 A+C 混合、函数级策略一致性（§3.8，D-7 定稿）：A 严格移交 / C 标注协议（`#[muslang::strategy]`、`#[muslang::borrow/take/ret]`）/ B `Arc` 为 P1 可选、同函数禁止 A/C 混用、混合生命周期须拆函数、回调走 C、`MusAllocator::from_c` deallocator 配对、清理归属与 §3.2.3.1 衔接、6 项 HIR FFI 校验错误码、Rust FFI 对应关系表 | Yuanbao (AI) |
 | v0.4.2 | 2026-09-04 | **语言机制细化**：① 泛型单态化策略（§3.9，D-13）：**HIR 层单态化**（后端只见到单态后具体函数）、**递归单态化深度硬限 25 层、超限 = 语法错误**、不引入 `dyn` 类型擦除、配合按需链接 + `--gc-sections` 三层控制膨胀、3 类错误码（`E_MONO_*`）；② 生命周期标注策略（§3.10，D-14）：方案 B——函数签名默认全省略 / 推断失败给建议报错（`E_LIFETIME_AMBIGUOUS` 附建议）、**结构体·枚举不可省**、`'static` 保留、**HRTB 推迟 1.0**、`extern` FFI 边界强制显式标注；③ C++ 互操作边界定稿（§3.11，D-15）：**vtable = Itanium C++ ABI**、**异常禁止跨越 FFI 边界**（编译期拒绝 throwing 签名）、**RTTI 不支持**、**模板须 C++ 侧预实例化**（MusLang 只见到具体类型）、1.0 支持边界一览表、与 D-3/D-7/D-4 衔接 | Yuanbao (AI) |
+
+| v0.4.3 | 2026-09-05 | **工程路径定稿**：① 自举路径与 staging 策略（§3.12，D-16）：M1 部分自举（前端 MusLang 写 + 后端 Rust 写）、Stage 0 宿主语言 = Rust、先编译 std 再编译编译器、确定性输出（可重现构建）推迟至 M2、完整自举含 C99 后端推迟至 M2/M3、与 D-13 耦合说明；② 包管理器（§3.13，D-17）：M1 = Cargo 复用（`build.rs` 驱动 muslangc）+ 三阶段演进（Cargo → hypo 成熟后 → `mktplace`），`mktplace` 谐音 marketplace、参考 hypo 分发安全模型 + pets_tools 编排能力、与 hypo 各司其职；③ 软件分发（§3.14，D-18）：hypo 为独立的系统级软件分发工具，`mktplace` 管源码/依赖/构建、hypo 管产物分发/部署，分工矩阵 + `mktplace.toml` vs `hypo-manifest.toml` + M1 仅知晓不集成；④ §3.7.1 追加 D-16/D-17/D-18；⑤ §12.3 重写为跳转 + 历史方案归档；⑥ §8 M3-1~M3-3 与 §3.12 Stage 0/1/2 对齐 | Yuanbao (AI) |
 
 ---
 
