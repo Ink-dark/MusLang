@@ -1,9 +1,9 @@
 # MusLang — 产品需求文档（PRD）
 
 > **项目代号**：MusLang-Qomolangma
-> **仓库**：https://gitee.com/moranqidarkseven/MusLang
+> **仓库**：https://github.com/Ink-dark/MusLang
 > **所属生态**：MusCat 浏览器的原生系统编程语言
-> **文档版本**：v0.4.5（分配器模型）
+> **文档版本**：v0.4.6（自洽性修订）
 > **创建日期**：2026-08-30
 > **更新日期**：2026-09-05
 > **作者**：墨染柒（Ink-dark）
@@ -15,11 +15,10 @@
 > - v0.4（2026-09-04）：架构决策落地（§3.7 架构决策记录、后端 C99 默认、双 runtime、std 按需链接 + 三端、二进制体积口径定稿、M1-0 决策冻结）
 > - v0.4.1（2026-09-04）：语义定稿——① `defer` 与错误传播 / 异步取消的交互规则（§3.2.3.1，D-12）；② 跨 `.so` 所有权移交协议 A+C 混合、函数级策略一致性（§3.8，D-7 定稿）；③ 配套引用补充（§15.1）
 > - v0.4.2（2026-09-04）：语言机制细化——① 泛型单态化策略：HIR 层单态化 + 递归深度硬限 25 层、超限为语法错误（§3.9，D-13）；② 生命周期标注策略：函数签名默认全省略、推断失败给建议报错、结构体/枚举不可省、HRTB 推迟 1.0、FFI 边界强制标注（§3.10，D-14）；③ C++ 互操作边界定稿：Itanium ABI、异常禁止跨越边界、RTTI 不支持、模板须 C++ 侧预实例化（§3.11，D-15）
-- v0.4.3（2026-09-05）：工程路径定稿——① 自举路径与 staging 策略（§3.12，D-16）；② 包管理器 `mktplace`（§3.13，D-17）；③ 软件分发与 hypo 分工（§3.14，D-18）
-- v0.4.4（2026-09-05）：运行时绑定定稿——`net` 事件循环作为 `std::net` 内部依赖自动带入、单线程 epoll MVP、无注入 API、P5 语义澄清（§3.15，D-19）
-- v0.4.5（2026-09-05）：分配器模型定稿——编译期注入默认分配器、`Box`/`Vec`/`HashMap` 同机制、作用域退出自动 free、L1 core 无兜底（§3.16，D-20）
-- v0.4.3（2026-09-05）：工程路径定稿——① 自举路径与 staging 策略（§3.12，D-16）：M1 部分自举（前端 MusLang 写 + 后端 Rust 写）、Stage 0 宿主语言 = Rust、先编译 std 再编译编译器、确定性输出（可重现构建）推迟至 M2；② 包管理器（§3.13，D-17）：M1 = Cargo 复用（不造轮子），远期 = `mktplace`（谐音 marketplace，MusLang 源码级包管理 + 工作区编排，设计参考 hypo 分发安全模型 + pets_tools 编排能力）；③ 软件分发（§3.14，D-18）：hypo 为独立的系统级软件分发工具，`mktplace` 管"源码/依赖/构建"、hypo 管"产物分发部署"，二者各司其职；§3.7.1 决策表追加 D-16/D-17/D-18，§12.3 重写为三阶段
-- v0.4.4（2026-09-05）：运行时绑定定稿——① `net::http` / 整个 `std::net` 子系统的事件循环（event loop / executor）**作为 `std::net` 的依赖自动带入**，用户 `use std::net` 即链接，不提供独立的"运行时选择"、不引入 `#[entry]` / `block_on` 之类的注入 API（§3.15，D-19）；② 事件循环 MVP = **单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing 为 P1（FR-047）；③ 高级替换路径：不使用 `std::net`、自行基于 syscall 实现网络层（裸机 / 嵌入式场景）；④ 澄清 P5「零运行时」语义（§1.4、§3.15.4）
+> - v0.4.3（2026-09-05）：工程路径定稿——① 自举路径与 staging 策略（§3.12，D-16）：M1 部分自举（前端 MusLang 写 + 后端 Rust 写）、Stage 0 宿主语言 = Rust、先编译 std 再编译编译器、确定性输出（可重现构建）推迟至 M2；② 包管理器（§3.13，D-17）：M1 = Cargo 复用（不造轮子），远期 = `mktplace`（谐音 marketplace，MusLang 源码级包管理 + 工作区编排，设计参考 hypo 分发安全模型 + pets_tools 编排能力）；③ 软件分发（§3.14，D-18）：hypo 为独立的系统级软件分发工具，`mktplace` 管"源码/依赖/构建"、hypo 管"产物分发部署"，二者各司其职；§3.7.1 决策表追加 D-16/D-17/D-18，§12.3 重写为三阶段
+> - v0.4.4（2026-09-05）：运行时绑定定稿——① `net::http` / 整个 `std::net` 子系统的事件循环（event loop / executor）**作为 `std::net` 的依赖自动带入**，用户 `use std::net` 即链接，不提供独立的"运行时选择"、不引入 `#[entry]` / `block_on` 之类的注入 API（§3.15，D-19）；② 事件循环 MVP = **单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing 为 P1（FR-047）；③ 高级替换路径：不使用 `std::net`、自行基于 syscall 实现网络层（裸机 / 嵌入式场景）；④ 澄清 P5「零运行时」语义（§1.4、§3.15.4）
+> - v0.4.5（2026-09-05）：分配器模型定稿——编译期注入默认分配器、`Box`/`Vec`/`HashMap` 同机制、作用域退出自动 free、L1 core 无兜底（§3.16，D-20）
+> - v0.4.6（2026-09-05）：自洽性修订——① D-12 修正：`defer` 改为**全路径执行**（Zig 语义）、`errdefer` 仅错误路径补充执行，`?` 提前返回 `defer`+`errdefer` 同栈 LIFO（§3.2.3.1）；② D-20 `Box` 隐式 free 与 D-12 对齐、LIFO 表述更正（§3.16.3）；③ FR-001 落地为 001a/001b（D-1）；④ §9 示例对齐 D-19（同步 main、`std::net`、Handler 统一）；⑤ TLS 收敛为 FR-016（P1）；⑥ D-13 例外口径统一为第一（D-19）/第二（D-20）；⑦ §3.4.1 架构图单态化移至 HIR 层、去宏展开；⑧ §3.11.3 去 trait 对象表述；⑨ §3.10.1 `longest` 改为报错示例；⑩ §3.15.2 任务模型澄清（每连接 future + 就绪队列 256）；⑪ 时间线顺延（M1 = 2026 Q4-2027 Q1）；⑫ D-2 传播清理（§2/§7/§6.3/§11 Zig 残留）；⑬ P5 / FR-008 / FR-013 / FR-047 / §1.1 / §12 章首口径同步；⑭ 结构修复：§3.16 移位、孤儿表删除、表格结构与 citation 残留清理
 
 ---
 
@@ -29,7 +28,7 @@
 
 **MusLang 是一门语法以 Rust 为参照（不保证源码级兼容）、安全模型以 Zig 的类型区分取代 `unsafe` 块、内置 Go 级网络标准库、编译产物与 Zig 同级轻量的系统编程语言。** Rust、C/C++ 三方通过**共享内存布局规范与统一 HIR** 实现编译期无损互操作（无运行时 FFI 层）；标准库按子系统拆分为独立 crate、按需链接，并通过 `sys` 层支持 Linux / macOS / Windows 三端扩展（当前仅 Linux 实装）。MusLang 是 MusCat 生态全栈自研的最后一环——从语言到编译器到链接器到内核到浏览器，全栈自主可控。
 
-> **说明（v0.4.5）**：本段仅反映已冻结/已决策的架构方向，详见 §3.7「架构决策记录」（D-0~D-20）。尚未决策的事项（WASM、comptime、调试信息等）仍见 §12，保持「待定」不动；自举 staging（§3.12，D-16）、包管理器（§3.13，D-17）、软件分发（§3.14，D-18）、async 运行时绑定（§3.15，D-19）、**分配器模型（§3.16，D-20）** 均已定稿。**分配器采用编译期注入默认分配器（非 `Box<T, A>` 泛型参数），`Box` 作用域退出自动 free（D-20）**。
+> **说明（v0.4.6）**：本段仅反映已冻结/已决策的架构方向，详见 §3.7「架构决策记录」（D-0~D-20）。尚未决策的事项（WASM、comptime）仍见 §12，保持「待定」不动（调试信息已决策为 DWARF 5，见 §12.4）；自举 staging（§3.12，D-16）、包管理器（§3.13，D-17）、软件分发（§3.14，D-18）、async 运行时绑定（§3.15，D-19）、**分配器模型（§3.16，D-20）** 均已定稿。**分配器采用编译期注入默认分配器（非 `Box<T, A>` 泛型参数），`Box` 作用域退出自动 free（D-20）**。
 
 ### 1.2 核心价值：三角融合
 
@@ -49,7 +48,7 @@
 | 内存安全 | 所有权 + `unsafe` 块 | GC | 手动 | **所有权，无 `unsafe` 块** |
 | C/C++ 互操作 | bindgen | cgo（重） | `@cImport` | **`@cImport` 同级** |
 | 网络标准库 | tokio/axum | `net/http` 内置 | 无 | **内置，对标 Go** |
-| 运行时 | panic handler | GC | 零 | **零** |
+| 运行时 | panic handler | GC | 零 | **零强制**（不用不链，D-19） |
 | 二进制体积 | 中等 | 中等 | ~4KB hello | **~4KB hello** |
 | 编译速度 | 慢 | 快 | 极快 | **极快** |
 | 自持 | 自举 | 自举 | 进行中 | **自举** |
@@ -73,8 +72,8 @@
 | P1 | **零隐藏控制流** | 无隐式分配、无隐式转换、无异常——所有控制流在源码中可见 |
 | P2 | **所有权强制** | 编译期保证内存安全，不允许 `unsafe` 逃逸 hatch |
 | P3 | **类型即安全边界** | 不安全操作通过类型标注（`*allowzero`、`*anyopaque`、`extern`）显式标记，审计粒度精确到类型 |
-| P4 | **显式优于隐式** | 分配器作为参数、错误传播用 `?`、并发模型显式选择 |
-| P5 | **零运行时** | 无 GC、无运行时库依赖、panic 直接 abort |
+| P4 | **显式优于隐式** | 分配器默认编译期注入、显式路径保留（`new_in` / `#[default_allocator]`，D-20）；错误传播用 `?`；并发模型显式选择 |
+| P5 | **零强制运行时** | 无 GC、panic 直接 abort；运行时组件仅在显式 `use` 的 std 子系统（如 `net`）引入时存在、不用不链（§3.15.4，D-19） |
 | P6 | **C 是第一公民** | `@cImport` 是一等特性，C/C++ 互操作零摩擦 |
 | P7 | **网络开箱即用** | 内置 `net` 标准库，对标 Go `net/http` 体验 |
 | P8 | **渐进式复杂度** | Hello World 只需 5 行；内核开发才需要理解分配器、裸指针、链接脚本 |
@@ -85,7 +84,7 @@
 
 | 场景 | 角色 | 核心需求 | MusLang 解法 |
 |---|---|---|---|
-| MusKitty 内核开发 | 墨染柒 + Orcha | 内存安全、C/C++ 互操作、零 GC、极小二进制 | Rust 语法 + 所有权 + `@cImport` + Zig 后端 |
+| MusKitty 内核开发 | 墨染柒 + Orcha | 内存安全、C/C++ 互操作、零 GC、极小二进制 | Rust 语法 + 所有权 + `@cImport` + C99 后端（D-2） |
 | MCP Server 实现 | Agent 工具开发者 | 高并发 HTTP、登录态审批接口 | 内置 `net/http` + async/await + 零 GC |
 | 信创环境构建 | 国产 OS 适配工程师 | 全栈自主、无外部语言依赖、LoongArch64/ARM64 | 自举编译器 + 自研链接器 + 零运行时 |
 | 第三方内核 dll 适配 | Chromium/Gecko 适配开发者 | C ABI 兼容、类型映射、内存安全 | `@cImport` + 所有权 + `extern "C"` 导出 |
@@ -99,19 +98,20 @@
 
 | 编号 | 功能 | 描述 |
 |---|---|---|
-| FR-001 | Rust 风格语法 | 结构体、枚举、trait、泛型、模式匹配、async/await，与 Rust 语法 100% 一致 |
+| FR-001a | Rust 风格语法（视觉相似） | 结构体、枚举、trait、泛型、模式匹配、async/await，语法形态与 Rust 高度相似（D-1） |
+| FR-001b | 明确不保证源码级兼容 | MusLang 为自有正式语法，**不承诺 Rust 源码可直接编译**（D-1） |
 | FR-002 | **无 `unsafe` 块** | 移除 Rust 的 `unsafe {}` 块，不安全通过类型标注表达 |
 | FR-003 | `*allowzero T` 类型 | 可空裸指针类型，是"不安全"的类型级标志，替代 `unsafe` 块 |
 | FR-004 | `*anyopaque` 类型 | 等价于 C 的 `void*`，类型不安全，需显式转换 |
 | FR-005 | `extern "C"` 块 | 声明外部 C/C++ 函数，是 FFI 的标志（Rust 中是 `unsafe extern "C"`） |
 | FR-006 | `@cImport` 指令 | 编译期解析 C/C++ 头文件，类型自动映射，与 Zig 同级 |
 | FR-007 | 所有权与借用 | 编译期所有权检查，移动语义，借用检查，无 GC |
-| FR-008 | 显式分配器 | 分配器作为参数显式传递，Zig 风格 |
+| FR-008 | 显式分配器 | 默认分配器由编译器在 HIR 层注入（`Box::new` 可用，D-20）；显式路径保留 Zig 风格：`Box::new_in(x, &alloc)` / `#[default_allocator]` |
 | FR-009 | `defer` 语句 | 作用域结束时执行清理，替代 RAII 析构函数 |
 | FR-010 | 默认 abort | panic 时直接 abort，无栈展开，零运行时开销 |
 | FR-011 | `?` 错误传播 | 函数返回 `Result<T, E>`，`?` 运算符传播错误（同 Rust） |
 | FR-012 | `Option<T>` 类型 | 可选值，替代可空指针 |
-| FR-013 | **模块系统** | `mod` / `use` 声明，与 Rust 一致；包管理见 §12 开放问题 |
+| FR-013 | **模块系统** | `mod` / `use` 声明，与 Rust 一致；包管理已定稿（§3.13，D-17） |
 
 ### 3.2 类型系统
 
@@ -122,7 +122,7 @@
 | 类型类别 | 示例 | 安全性 | 使用场景 |
 |---|---|---|---|
 | **安全指针** | `&T`、`&mut T` | ✅ 借用检查器保证 | 日常引用 |
-| **安全裸指针** | `*const T`、`*mut T` | ⚠️ 不可为空，需 `unsafe` 操作 | FFI 参数/返回值 |
+| **安全裸指针** | `*const T`、`*mut T` | ⚠️ 不可为空；解引用属不安全操作，经类型标注 + 审计清单覆盖（MusLang 无 `unsafe` 块，安全边界 = 类型本身） | FFI 参数/返回值 |
 | **可空裸指针** | `*allowzero T` | ❌ 可为地址零，类型级不安全标志 | 内核 MMIO、C 兼容 |
 | **不透明指针** | `*anyopaque` | ❌ 无类型信息 | C `void*` 互操作 |
 | **安全抽象** | `Box<T>`、`Vec<T>` | ✅ 所有权管理 | 堆分配容器 |
@@ -166,47 +166,47 @@ fn process_file(path: &str) -> Result<(), IoError> {
 
 #### 3.2.3.1 `defer` 与错误传播、异步取消的交互（D-12）
 
-> **v0.4.1 定稿**。MusLang 无 RAII / `Drop` trait，资源清理由 `defer`（正常路径）与 `errdefer`（错误路径）显式承担。本小节定义其与 `?` 提前返回、以及 `async fn` 在 `.await` 点被取消时的精确语义。**规则为函数级、编译期强制，无运行时开销。**
+> **v0.4.1 定稿，v0.4.6 修订**。MusLang 无 RAII / `Drop` trait，资源清理由 `defer` 与 `errdefer` 显式承担。语义与 Zig 对齐：**`defer` 在作用域的任何退出路径都执行（含错误路径）**，`errdefer` 仅在错误路径上**额外**执行。本小节定义其与 `?` 提前返回、以及 `async fn` 在 `.await` 点被取消时的精确语义。**规则为函数级、编译期强制，无运行时开销。**
 
-**规则一：正常退出 → `defer` / `errdefer` 均执行（LIFO）**
+**规则一：正常退出 → 仅 `defer` 执行（LIFO）**
 
-作用域无论以何种**非错误**方式退出（自然结束、`return`、`break` 跳出块），已注册的 `defer` 与 `errdefer` 按**后进先出**顺序执行：
+作用域以**非错误**方式退出（自然结束、`return`、`break` 跳出块）时，已注册的 `defer` 按**后进先出**顺序执行，`errdefer` 不执行：
 
 ```rust
 fn process(path: &str) -> Result<(), IoError> {
     let file = fs::open(path)?;      // 若 ? 提前返回，走规则二
-    defer file.close();              // 仅正常退出路径执行
-    errdefer log_failure(path);      // 仅错误退出路径执行（见规则二）
+    defer file.close();              // 所有退出路径均执行（含错误路径）
+    errdefer log_failure(path);      // 仅错误退出路径额外执行（见规则二）
 
-    let data = file.read_all()?;     // ? 触发 → 仅 errdefer 执行
+    let data = file.read_all()?;
     Ok(())
-}   // 正常到达此处 → 仅 defer 执行
+}   // 正常到达此处 → 仅 defer 执行（close），errdefer 不执行
 ```
 
-**规则二：`?` 提前返回（错误路径）→ 仅 `errdefer` 执行**
+**规则二：错误退出（`?` 或 `return Err`）→ `defer` 与 `errdefer` 均执行（同一条 LIFO 栈）**
 
-`?` 将错误从当前作用域返回时，该作用域内已注册的 `defer` **不执行**，仅 `errdefer` 按 LIFO 执行。这是 Zig 的 `errdefer` 语义 ：错误路径上的资源回滚显式标注，符合 P1「零隐藏控制流」——清理行为由关键字即可读出，无需追溯整个作用域。
+`?` 将错误从当前作用域返回、或显式 `return Err(..)` 时，该作用域内已注册的 **`defer` 与 `errdefer` 全部执行**，二者共享同一条 LIFO 清理栈、按注册逆序交错执行。这正是 Zig 的语义：**`defer` 保证任何退出路径资源都不泄漏**；`errdefer` 只是把**错误路径专属的回滚逻辑**显式标注出来——清理行为由关键字即可读出，无需追溯整个作用域，符合 P1「零隐藏控制流」。
 
-- **多个 `errdefer`**：按注册的逆序（LIFO）执行；
-- **`defer` 与 `errdefer` 混合**：错误路径只跑 `errdefer` 链，正常路径只跑 `defer` 链，两者**互不交叉**；
+- 上例中 `read_all()?` 失败 → 按注册逆序先 `log_failure`（后注册），后 `close`（先注册），文件句柄不泄漏；
+- **`defer` 与 `errdefer` 混合**：错误路径按注册逆序**交错**执行全部项；正常路径仅执行 `defer` 项；
 - **`errdefer` 块本身允许 `?`** 吗？不允许——`errdefer` 体必须为 infallible（不返回 `Result`）。否则清理失败会形成「错误路径上再出错」的不可判定状态，由编译器拒绝。
 
-**规则三：`async fn` 在 `.await` 点被取消 → `defer` / `errdefer` 的同步部分执行**
+**规则三：`async fn` 在 `.await` 点被取消 → `defer` 的同步部分执行，`errdefer` 不执行**
 
 `async fn` 编译期展开为状态机（FR-043）；当该 future 在 `.await` 点被丢弃（取消）时：
 
-1. **取消只发生在 `.await` 点**（协作式），与 Rust 的取消模型一致 ；进入长同步循环而无 `.await` 的 `async fn` **不可被取消**——此限制须在文档与 LSP 提示中明示；
-2. 状态机按**逆构造顺序**丢弃所有跨 `.await` 点存活的局部变量，`defer` / `errdefer` 中**不含 `.await` 的同步部分**照常执行（规则一同态）；
-3. **`defer` 块内禁止 `.await`**（编译期硬拒绝）。理由：异步析构（async Drop）是 Rust 折腾多年仍未稳定的难题 ，MusLang MVP 不应踩此坑——**需要异步清理的资源必须显式调用 `close().await`，不得隐藏在 `defer` 中**；
+1. **取消只发生在 `.await` 点**（协作式），与 Rust 的取消模型一致；进入长同步循环而无 `.await` 的 `async fn` **不可被取消**——此限制须在文档与 LSP 提示中明示；
+2. 状态机按**逆构造顺序**丢弃所有跨 `.await` 点存活的局部变量，`defer` 中**不含 `.await` 的同步部分**照常执行（资源不泄漏）；**取消不是错误返回，`errdefer` 不执行**；
+3. **`defer` 块内禁止 `.await`**（编译期硬拒绝）。理由：异步析构（async Drop）是 Rust 折腾多年仍未稳定的难题，MusLang MVP 不应踩此坑——**需要异步清理的资源必须显式调用 `close().await`，不得隐藏在 `defer` 中**；
 4. 异步资源的显式关闭接口（如 `TcpStream::close(self) -> impl Future`）须在标准库中统一提供，`defer stream.close()` 此类**同步**调用仅关闭底层 fd、不等待优雅关闭，属用户知情的选择。
 
-> **取消安全（cancel-safety）**：取消后已执行的 `defer` / `errdefer` 必须保持资源不变量——标准库异步类型须文档化其在 `.await` 点被取消时的行为（对标 Tokio 的 cancel-safe 约定 ）。
+> **取消安全（cancel-safety）**：取消后已执行的 `defer` 必须保持资源不变量——标准库异步类型须文档化其在 `.await` 点被取消时的行为（对标 Tokio 的 cancel-safe 约定）。
 
 **规则四：多个 `defer` 的执行顺序与可见性**
 
 - 同一作用域内多个 `defer`：按**文本逆序**（后注册先执行），与 Zig、Go 一致；
 - `defer` 可引用外层变量，但**不可捕获跨 `.await` 点被移动的变量**（借用检查器在 HIR 阶段按状态机拆分点校验，防止 use-after-move）；
-- `defer` 体内的 panic：**不**被自动捕获，直接向上传播并终止同作用域剩余 `defer`——避免「清理失败静默」。
+- `defer` 体内的 panic：**不**被自动捕获——按 FR-010 直接 `abort`（panic 路径无栈展开、不执行任何 `defer`），避免「清理失败静默」。
 
 **函数级校验（编译器强制）**
 
@@ -231,7 +231,7 @@ fn process(path: &str) -> Result<(), IoError> {
 
 | 编号 | 功能 | 优先级 | 对标 |
 |---|---|---|---|
-| FR-014 | `net` 包：TCP/UDP/HTTP/TLS | P0 | Go `net` |
+| FR-014 | `net` 包：TCP/UDP/HTTP（TLS 见 FR-016） | P0 | Go `net` |
 | FR-015 | `net::http`：HTTP/1.1 + HTTP/2 客户端与服务器，async | P0 | Go `net/http` |
 | FR-016 | `net::tls`：TLS 支持，信创集成国密 SM2/SM3/SM4 | P1 | rustls / BoringSSL |
 | FR-017 | `fs` 包：文件操作 | P0 | Go `os`/`io` |
@@ -263,8 +263,11 @@ struct ServeMux {
 impl ServeMux {
     fn new() -> Self;
     fn handle(&mut self, pattern: &str, handler: impl Handler);
-    fn handle_func(&mut self, pattern: &str, f: fn(req: &Request) -> Response);
+    // async fn 指针：经标准库 blanket impl 自动满足 Handler（见 §3.15.3）
+    fn handle_func(&mut self, pattern: &str, f: async fn(req: &Request) -> Response);
 }
+
+// std::net::http::Server：顶层类型，内部封装 ServeMux + event loop（D-19，见 §3.15.3）
 
 // 客户端：对标 Go http.Client
 struct Client {
@@ -314,28 +317,37 @@ fn logging_middleware(next: impl Handler) -> impl Handler {
 │                                                             │
 │  源码 (.mus)                                                │
 │    │                                                        │
-│    ▼                                                       │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
-│  │ 词法分析  │→│ 语法分析  │→│ AST      │→│ 宏展开    │    │
-│  └──────────┘  └──────────┘  └──────────┘  └────┬─────┘    │
-│                                                  │          │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐       │          │
-│  │ HIR      │←│ 名称解析  │←│ 类型推断  │←─────┘          │
-│  └────┬─────┘  └──────────┘  └──────────┘                  │
+│    ▼                                                        │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐                 │
+│  │ 词法分析  │ → │ 语法分析  │ → │   AST    │                 │
+│  └──────────┘   └──────────┘   └────┬─────┘                 │
+│                                     │                       │
+│  ┌──────────┐   ┌──────────┐   ┌────▼─────┐                 │
+│  │   HIR    │ ← │ 名称解析  │ ← │ 类型推断  │                 │
+│  └────┬─────┘   └──────────┘   └──────────┘                 │
 │       │                                                     │
-│  ┌────┴─────┐  ┌──────────┐  ┌──────────┐                  │
-│  │ MIR      │→│ 所有权检查 │→│ 借用检查  │                  │
-│  │ (控制流)  │  │ (Move)   │  │ (Borrow) │                  │
-│  └────┬─────┘  └──────────┘  └────┬─────┘                  │
-│       │                            │                       │
-│  ┌────┴─────┐  ┌──────────┐  ┌────┴─────┐                  │
-│  │ THIR     │→│ 泛型单态化 │→│ 代码生成   │                  │
-│  │(类型级IR) │  └──────────┘  │ (Zig/Rust/C)│                 │
-│  └──────────┘                 └────┬─────┘                  │
-│                                    │                        │
-│                              ┌─────┴─────┐                  │
-│                              │ .zig/.rs/.c │                  │
-│                              └───────────┘                  │
+│       ▼                                                     │
+│  ┌────────────────┐                                         │
+│  │ 泛型单态化       │ ← D-13：在 HIR 层完成，                  │
+│  │ （单态化后 HIR）  │    后端只见单态后的具体函数              │
+│  └────┬───────────┘                                         │
+│       ▼                                                     │
+│  ┌──────────┐   ┌───────────┐   ┌──────────┐                │
+│  │   MIR    │ → │ 所有权检查 │ → │ 借用检查  │                │
+│  │ (控制流)  │   │  (Move)   │   │ (Borrow) │                │
+│  └────┬─────┘   └───────────┘   └────┬─────┘                │
+│       │                              │                      │
+│  ┌────▼─────┐   ┌──────────────┐    │                      │
+│  │   THIR   │ → │  代码生成      │ ◄──┘                     │
+│  │(类型级IR) │   │ (C99/Rust/   │   C99 = MVP 默认（D-2）   │
+│  └──────────┘   │  LLVM/Zig)   │   LLVM = P1；Zig = P2    │
+│                 └────┬─────────┘                           │
+│                      ▼                                     │
+│               ┌────────────────┐                           │
+│               │ .c / .rs / .zig │                          │
+│               └────────────────┘                           │
+│                                                             │
+│  （宏系统未定稿，见 §12.1——阶段一为方案 C：仅泛型、无宏展开）  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -382,7 +394,7 @@ fn logging_middleware(next: impl Handler) -> impl Handler {
 | FR-044 | FfiFuture | FFI-safe Future，`repr(C)`，跨语言异步统一 |
 | FR-045 | 轻量级任务 | 栈池复用，无 GC，无栈协程 |
 | FR-046 | 事件驱动 | epoll/kqueue/io_uring 后端 |
-| FR-047 | 调度器 | work-stealing，可选，用户显式启用 |
+| FR-047 | 调度器 | work-stealing 多线程调度（P1）：不暴露 Executor 注入接口（D-19），仅经 `Server::with_config(Threads(n))` 等配置项启用 |
 
 #### 3.6.1 异步实现模型
 
@@ -401,7 +413,7 @@ MusLang async/await  ──编译期──→  状态机 struct
 
 ### 3.7 架构决策记录（v0.4）
 
-> 本节为 v0.4 新增，收录经设计阶段审阅后**已收敛的架构决策**。每项标注编号（D-x）、结论与状态；未在此列出的事项仍按原章节「待定」处理，**保持不变**。完整审阅依据见仓库 `docs/audit/`（审计报告 v1→v9）。
+> 本节为 v0.4 新增，收录经设计阶段审阅后**已收敛的架构决策**。每项标注编号（D-x）、结论与状态；未在此列出的事项仍按原章节「待定」处理，**保持不变**。完整审阅依据见仓库 `docs/audit-20260904.md`（审计报告）。
 
 #### 3.7.1 决策清单
 
@@ -416,7 +428,7 @@ MusLang async/await  ──编译期──→  状态机 struct
 | D-6 | 调用拓扑 | 同类 runtime 内部调用 **0 开销**；仅**跨 rt / rt-c 边界**产生一次 ABI 成本 | 待冻结 |
 | D-7 | 跨 `.so` 所有权移交协议 | **A（严格移交）+ C（标注协议）混合允许、函数级策略一致**（同函数内禁止 A/C 混用）；B（`Arc` across FFI）为 P1 可选；`MusAllocator::from_c` 桥接 deallocator 配对（详见 §3.8） | 已定（v0.4.1） |
 | D-8 | 双 runtime | **muslang-rt**（MusLang 原生，自有布局/borrow/类型化 panic）+ **muslang-rt-c**（C 兼容，`repr(C)`、`malloc/free`、`errno`、完整用户态语义） | 已定 |
-| D-12 | `defer` 语义（含 `?` / `async`） | `defer`/`errdefer` 分离（错误路径仅 `errdefer`、LIFO）；`?` 提前返回只跑 `errdefer`；`async fn` 取消仅在 `.await` 点、协作式，`defer` 禁止 `.await`、清理归调用方显式 `close().await`；5 类错误码（详见 §3.2.3.1） | 已定（v0.4.1） |
+| D-12 | `defer` 语义（含 `?` / `async`） | `defer` **全路径执行**（含错误路径，Zig 语义，LIFO）；`errdefer` 仅错误路径**补充**执行（与 `defer` 同栈 LIFO）；`async fn` 取消仅在 `.await` 点、协作式（取消非错误，`errdefer` 不执行），`defer` 禁止 `.await`、清理归调用方显式 `close().await`；5 类错误码（详见 §3.2.3.1） | 已定（v0.4.1，v0.4.6 修订错误路径语义） |
 | D-9 | 标准库 | **按需链接**：每子系统为独立 crate（用哪个链哪个）；`sys` 层按 `target_os` 分发，**当前仅 Linux 实装**，macOS/Windows 留 trait + stub | 已定 |
 | D-10 | 系统接口 | **rt-c = std 底层 + C 互操作边界 = 唯一系统接口**；std 走 rt-c，本身不产生 FFI 开销 | 已定 |
 | D-11 | L1 范围 | `no_std` 用户态（**kernel 为远期，不在当前规划**）；是否含 libc 待确认（影响 rt-c 设计下限，建议默认 musl） | 需确认 |
@@ -426,7 +438,7 @@ MusLang async/await  ──编译期──→  状态机 struct
 | D-16 | 自举路径（staging） | **M1 部分自举**：编译器前端（lexer/parser/AST/类型检查）用 MusLang 编写，后端（C99 代码生成 / LLVM 桥接）仍用 Rust 编写；**Stage 0 宿主语言 = Rust**；构建顺序**先编译 std 再编译编译器**（std 依赖 HIR 单态化 D-13 完整支持）；**确定性输出（可重现构建）推迟至 M2**；完整自举（含 C99 后端）推迟至 M2/M3 | 已定（v0.4.3） |
 | D-17 | 包管理器 | **M1 = Cargo 复用**（不造轮子，`.mus` 作为 Rust 受限子集 + `build.rs` 驱动 `muslangc`）；**远期 = `mktplace`**（谐音 marketplace，MusLang 源码级包管理器 + 工作区编排器），设计参考 **hypo 的分发安全模型** + **pets_tools 的工作区编排能力**；`mktplace` 与 hypo **各司其职**（见 §3.13、§3.14） | 已定（v0.4.3） |
 | D-18 | 软件分发 | **hypo 为独立的系统级软件分发工具**（非构建时包管理器）；MusLang 编译产物经 hypo 做系统级分发部署，**hypo 与 `mktplace` 分工明确**：`mktplace` 管"源码怎么组织、依赖怎么拉、怎么构建"，hypo 管"编好的二进制/库怎么分发部署到目标机" | 已定（v0.4.3） |
-| D-19 | `net` 运行时绑定 | **事件循环（event loop / executor）作为 `std::net` 的内部依赖自动带入**：用户 `use std::net` 即链接，**不提供独立的"运行时选择"**、**不引入 `#[entry]` / `block_on` 注入 API**（对标 Go，P7「网络开箱即用」）；**MVP = 单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing = P1（FR-047），io_uring = P1；executor 内部用 **`Box<dyn Future>`**（D-13 泛型单态化的**唯一例外**，避免 `Spawn<F>` 泛型爆炸）；不用 `std::net` 时 event loop 完全不链接，`<8KB` 仍可达（D-11）；嵌入已有 C 事件循环 / 内核场景**不使用 `std::net`**、自行基于 `std::sys` + `FfiFuture`（FR-044）实现；并**澄清 P5「零运行时」=「零强制运行时」**（可选、不用不链、用了也透明，§3.15.4） | 已定（v0.4.4） |
+| D-19 | `net` 运行时绑定 | **事件循环（event loop / executor）作为 `std::net` 的内部依赖自动带入**：用户 `use std::net` 即链接，**不提供独立的"运行时选择"**、**不引入 `#[entry]` / `block_on` 注入 API**（对标 Go，P7「网络开箱即用」）；**MVP = 单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing = P1（FR-047），io_uring = P1；executor 内部用 **`Box<dyn Future>`**（D-13 泛型单态化的**第一个例外**，第二个为 D-20 分配器注入；避免 `Spawn<F>` 泛型爆炸）；不用 `std::net` 时 event loop 完全不链接，`<8KB` 仍可达（D-11）；嵌入已有 C 事件循环 / 内核场景**不使用 `std::net`**、自行基于 `std::sys` + `FfiFuture`（FR-044）实现；并**澄清 P5「零运行时」=「零强制运行时」**（可选、不用不链、用了也透明，§3.15.4） | 已定（v0.4.4） |
 | D-20 | 分配器模型 | **编译期注入默认分配器**（方案 C）：`Box::new(x)` / `Vec::new()` / `HashMap::new()` 可用，编译器在 HIR 层自动注入当前作用域默认分配器（**非 `Box<T, A>` 泛型参数、非全局可变状态**），后端只见具体调用、不新增单态化实例（D-13 第二个例外，与 D-19 并列）；默认解析顺序 = `#[default_allocator]` 注解 > 模块级 `use as default` > 全局兜底；**`Box` / 集合作用域退出自动 free**（编译器隐式插入 `defer`，非 RAII `Drop`，与 §3.2.3 不矛盾）；**L1 core（`#![no_runtime]`）无全局兜底**，`Box::new` 报错 `E_ALLOC_NO_DEFAULT`；rt 兜底 = `GeneralPurposeAllocator`（FR-021），rt-c 兜底 = `malloc/free` via `MusAllocator::from_c`（§3.8.4，deallocator 配对） | 已定（v0.4.5） |
 
 #### 3.7.2 互操作：编译期机制（D-3）
@@ -476,7 +488,7 @@ your_app.mus
    （每子系统为独立 crate，可独立启用/剔除）
         │
    ┌──────────┬─────────────┬──────────────┐
-   │std:os:linux│std:os:macos│std:os:windows │
+   │std::os::linux│std::os::macos│std::os::windows│
    │ (当前实装) │ (trait+stub)│ (trait+stub)  │
    └──────────┴─────────────┴──────────────┘
         │
@@ -563,7 +575,7 @@ extern "C" {
 为使「MusLang 分配的对象能被 C 侧 `free`」与「C 分配的对象能被 MusLang 的 `Box` 接管」**deallocator 配对**，要求 MusLang 侧**所有堆分配经统一 `MusAllocator`**，并提供 C 侧对接：
 
 ```rust
-// 标准库接口（FR-021，P0）
+// 标准库接口（FR-021，P0）；MusAllocator 为该 trait 的标准实现类型
 pub trait Allocator {
     fn alloc(&self, layout: Layout) -> Result<*mut u8, AllocError>;
     fn dealloc(&self, ptr: *mut u8, layout: Layout);
@@ -571,8 +583,9 @@ pub trait Allocator {
 
 impl MusAllocator {
     /// 用 C 的 malloc/free 作为 MusLang 的分配器 → MusLang 分配的对象可被 C 侧 free
-    pub fn from_c(malloc: unsafe fn(usize) -> *mut c_void,
-                  free:   unsafe fn(*mut c_void)) -> Self;
+    /// （malloc 可能返回空：签名用 `*allowzero` 标注——类型即安全边界（P3），不引入 unsafe fn）
+    pub fn from_c(malloc: fn(usize) -> *allowzero c_void,
+                  free:   fn(*allowzero c_void)) -> Self;
 }
 ```
 
@@ -666,22 +679,22 @@ impl MusAllocator {
 
 #### 3.10.1 核心规则（方案 B）
 
-1. **函数签名：默认全省略**。所有输入引用参数由编译器自动分配独立生命周期变量；返回值若只引用一个参数，自动绑定到该参数（等价于 Rust 省略规则 #1）。
+1. **函数签名：默认全省略**。所有输入引用参数由编译器自动分配独立生命周期变量；返回值若只引用**一个**输入参数，自动绑定到该参数（等价于 Rust 省略规则 #1）。
 
    ```rust
-   // 用户书写（省略）
-   fn longest(x: &str, y: &str) -> &str { if x.len() > y.len() { x } else { y } }
-
-   // 编译器内部推断为
-   fn longest<'a, 'b>(x: &'a str, y: &'b str) -> &'a str { … }
+   // 用户书写（省略）              // 编译器内部推断为
+   fn trim(s: &str) -> &str { s };  fn trim<'a>(s: &'a str) -> &'a str;
    ```
 
-2. **推断失败 → 编译错误 + 建议**。当返回值引用**多个**输入参数、编译器无法确定绑定时，**报错并给出具体标注建议**（对标 Rust 的错误体验），而非静默生成错误代码：
+2. **推断失败 → 编译错误 + 建议**。当返回值可能引用**多个**输入参数、编译器无法安全确定绑定时，**报错并给出具体标注建议**（与 Rust 行为一致——Rust 同样拒绝此类签名），而非静默生成不健全的代码：
 
    ```rust
-   // 编译错误 E_LIFETIME_AMBIGUOUS：
-   // "返回值同时引用 'a 与 'b，请显式标注生命周期参数"
-   fn pick<'a, 'b>(x: &'a i32, y: &'b i32) -> &'a i32 { … }  // 建议写法
+   // ❌ 编译错误 E_LIFETIME_AMBIGUOUS：
+   // "返回值可能引用 x 或 y 的生命周期，请显式标注"
+   fn longest(x: &str, y: &str) -> &str { if x.len() > y.len() { x } else { y } }
+
+   // ✅ 建议写法：统一两个入参的生命周期（调用方两侧引用须同时存活至少 'a）
+   fn longest<'a>(x: &'a str, y: &'a str) -> &'a str { if x.len() > y.len() { x } else { y } }
    ```
 
 3. **结构体 / 枚举：不可省略**。类型定义中的生命周期参数影响内存布局（引用大小），不能靠推断；此点与 Rust 一致，**不妥协**。
@@ -768,7 +781,7 @@ impl MusAllocator {
 
 #### 3.11.3 与既有章节的衔接
 
-- **与 D-3（共享方言+HIR）**：C++ 的虚函数 / 继承语义在方言层 lowering 为 MusLang trait 对象，vtable 布局须与 Itanium 一致，由 HIR 单态化（§3.9）统一处理；
+- **与 D-3（共享方言+HIR）**：C++ 虚函数调用在方言层 lowering 为**对 Itanium vtable 槽位的直接调用**（不引入 MusLang 侧 `dyn` 类型擦除，符合 D-13；MusLang 侧以具体类型 + 显式判别表达多态），由 HIR 单态化（§3.9）统一处理；
 - **与 D-7（所有权移交，§3.8）**：C++ 对象跨边界一律走 **A（严格移交）**，`std::shared_ptr` 等引用计数类型不跨边界（见上表）；
 
 
@@ -776,7 +789,7 @@ impl MusAllocator {
 
 ### 3.12 自举路径与 staging 策略（D-16，v0.4.3）
 
-> **问题**：自举（bootstrap）是编译器项目的"成年礼"——能否用 MusLang 写 `muslangc` 并编译通过、跑起来，决定语言是否真正自洽。但**完整自举（含 C99 后端）工作量极大**，M1 时间窗（2026 Q1-Q2）难以承受；且 std 自身依赖 HIR 单态化（D-13）完整支持，Stage 0 必须具备完整语言实现。**本小节定义分阶段自举路径，属工程规划、不影响语言语义。**
+> **问题**：自举（bootstrap）是编译器项目的"成年礼"——能否用 MusLang 写 `muslangc` 并编译通过、跑起来，决定语言是否真正自洽。但**完整自举（含 C99 后端）工作量极大**，M1 时间窗（2026 Q4-2027 Q1，约两个季度）难以承受；且 std 自身依赖 HIR 单态化（D-13）完整支持，Stage 0 必须具备完整语言实现。**本小节定义分阶段自举路径，属工程规划、不影响语言语义。**
 
 #### 3.12.1 经典三阶段
 
@@ -839,7 +852,7 @@ impl MusAllocator {
 - **§3.4 / FR-037**：自举属 P2（完整自举），本小节将 P2 拆为"M1 部分（前端）+ M2/M3 完整"，与 §8 阶段三 M3-1~M3-3 对齐；
 - **§3.9（D-13）**：std 编译依赖 HIR 单态化完整支持，Stage 0 必须先实现 D-13（含 25 层限制、`E_MONO_*` 错误码）；
 - **§3.13（D-17）**：`mktplace` 远期需支持"MusLang 编写的编译器作为可构建包"的工作区编排；
-- **§10**：成功指标"自持"对应 Stage 2 通过，验收口径为 Stage 2 产出与 Stage 1 **语义等价**（M1 放宽为"能编译通过"）。
+- **§10**：成功指标"自持"对应 Stage 2 通过，验收口径为 Stage 2 产出与 Stage 1 **SHA-256 一致**（可重现构建，§3.12.4；M1 不做 Stage 2，放宽为 Stage 1 能编译通过）。
 
 > **风险提示**：若 M1 实测发现"前端 MusLang 写"受限于语言缺陷反复返工，可退化为"M1 仅写 lexer/parser（无泛型），M2 再迁移类型检查"——但**不建议作为首选**，因会推迟语言设计验证。
 
@@ -886,7 +899,7 @@ fn main() {
 
 **M1 已知限制（接受）**：
 - `build.rs` 的增量支持有限，可能全量重编 `.mus`——**M1 全量，M2 再做 `muslangc` 增量**（与 D-16 确定性输出同期）；
-- 依赖粒度：MusLang 库发布为**独立的 crates.io crate**（每个库一个 crate），std 组件统一归入 `muslang-std` 大 crate（features 控制开哪些模块），**不采用"一个大 crate 包含所有 std"**；
+- 依赖粒度：第三方 MusLang 库发布为**独立的 crates.io crate**（每个库一个 crate）；std 在 M1 打包为单个 `muslang-std` crate、以 features 控制哪些子系统源码进入编译——这只是 **M1 的分发打包口径**，语言层仍按 D-9 逐子系统按需链接（features 关闭 = 源码不参与编译，体积行为一致）；
 - 本地 registry mirror：`cargo vendor` + 私有 registry 满足信创离线，**M1 不额外开发分发服务**。
 
 #### 3.13.2 远期：`mktplace`（谐音 marketplace）
@@ -911,7 +924,7 @@ fn main() {
 #### 3.13.3 三阶段演进
 
 ```
-M1（2026 Q1-Q2）         过渡期                    v1.0+
+M1（2026 Q4-2027 Q1）     过渡期                    v1.0+
 ─────────────────       ──────────────            ──────────────────
    Cargo + build.rs  ──►  Cargo 为主 +          ──►  mktplace 一步到位
    muslangc 作为         mktplace 雏形试用         替代 Cargo + 吸收
@@ -1023,8 +1036,8 @@ signature: SM2:xxxx...
 
 | 阶段 | hypo 集成 | 说明 |
 |---|---|---|
-| **M1（2026 Q1-Q2）** | ⚠️ **仅知晓，不集成** | 编译产物手工部署即可；`hypo-manifest.toml` 规格**预定义**（本节），但工具本身不实现 |
-| **M2（2026 Q3-Q4）** | 试点集成 | MusKitty 内核镜像通过 hypo 打包分发 |
+| **M1（2026 Q4-2027 Q1）** | ⚠️ **仅知晓，不集成** | 编译产物手工部署即可；`hypo-manifest.toml` 规格**预定义**（本节），但工具本身不实现 |
+| **M2（2027 Q2-Q3）** | 试点集成 | MusKitty 内核镜像通过 hypo 打包分发 |
 | **v1.0+** | 完整支持 | hypo + `mktplace` 双工具协同，信创离线 mirror 全绿 |
 
 #### 3.14.4 与既有章节的衔接
@@ -1040,7 +1053,7 @@ signature: SM2:xxxx...
 
 ### 3.15 `net` 事件循环：作为 `std::net` 的依赖自动带入（D-19，v0.4.4）
 
-> **问题**：§3.6 已定 async 语法（Rust 风格、编译期状态机），§3.3.1 已定 `net::http` API 形状（`Handler::handle` 为 `async`、`server.listen().await`）。但 **`listen().await` 由谁驱动、事件循环从哪来** 一直未回答。本小节定稿 **事件循环（event loop / executor）的归属与绑定方式**。**规则为编译期 / 链接期机制，无运行时选项开销（无 vtable 分支、无 feature 检测）**。
+> **问题**：§3.6 已定 async 语法（Rust 风格、编译期状态机），§3.3.1 已定 `net::http` API 形状（`Handler::handle` 为 `async`）。但 **`listen()` / `connect()` / `accept()` 这些阻塞点由谁驱动、事件循环（event loop / executor）从哪来** 一直未回答。本小节定稿 **事件循环的归属与绑定方式**。**规则为编译期 / 链接期机制，无运行时选项开销（无 vtable 分支、无 feature 检测）**。
 
 #### 3.15.1 核心决策：事件循环是 `std::net` 的依赖，不是用户的选择
 
@@ -1085,7 +1098,7 @@ event_loop 完全不存在于最终二进制中。
 |---|---|---|
 | 事件驱动 | **单线程 epoll**（Linux）/ kqueue（macOS，`sys` 层分发，D-9） | io_uring 可选（P1） |
 | 线程模型 | **一个 event loop 处理全部连接**（goroutine-per-connection 的**协程**跑在单 loop 上，非"一个连接一个 OS 线程"） | 多线程 work-stealing（FR-047，P1） |
-| 任务池 | **固定大小**（默认 256 任务槽），**无动态扩容** | 可配置 `with_config(Threads(n))` |
+| 任务模型 | **每连接一个状态机 future**（挂起于 `.await` 时仅占连接缓冲、不占运行槽）；就绪队列固定容量（默认 256 深），**无动态扩容**，超出即对新连接背压（暂停 accept） | 可配置 `with_config(Threads(n))` |
 | 锁 | 无（单线程），避免原子 / Mutex 开销 | 多线程时按 connection 分片 |
 | 体积 | < 20KB（不含 TLS / HTTP 解析） | — |
 | 剔除方式 | `no_std` 或不 `use std::net` → 不链接 | 同 |
@@ -1093,7 +1106,8 @@ event_loop 完全不存在于最终二进制中。
 **选择单线程 MVP 的理由**：
 - **体积小**：不需要锁、不需要 work-stealing 任务队列、不需要线程池——符合 L1 精神；
 - **内核 / 嵌入式场景够用**：单 loop + 非阻塞 I/O 即可支撑 10 万连接（瓶颈在 fd 数量与内存，不在线程数）；
-- **多线程可后续追加而不破坏 API**：`Server::listen()` 签名不变，仅内部从单 loop 扩为多 loop，`Handler` 代码零改动（P1 再做，不急 M1）。
+- **多线程可后续追加而不破坏 API**：`Server::listen()` 签名不变，仅内部从单 loop 扩为多 loop，`Handler` 代码零改动（P1 再做，不急 M1）；
+- **与「10 万连接 < 500MB」（§4.1 / §10）的口径衔接**：10 万连接指**空闲挂起**在 epoll 上的连接（每连接 ≈ 4KB 缓冲 + 状态机，不含 TLS / HTTP 解析缓冲）；「256」是就绪队列深度（单轮调度上限），**不是并发连接数上限**。
 
 #### 3.15.3 用户代码示例（Go 级体验，零 boilerplate）
 
@@ -1108,6 +1122,7 @@ impl Server {
     fn listen(&self) { /* 内部：起 event loop、accept、spawn 协程、block 至此 */ }
 }
 
+// 与 §3.3.1 同一定义
 trait Handler {
     async fn handle(&self, req: &http::Request, res: &mut http::Response)
         -> Result<(), http::HttpError>;
@@ -1121,6 +1136,8 @@ fn main() {
     server.listen();  // ← 阻塞：event loop 在此启动并驱动所有 async Handler
 }
 ```
+
+> **Handler 的便利实现**：返回 `Response` 的 async 闭包（`|req| async { ... }`）与 `async fn(&Request) -> Response` 经标准库 blanket impl 自动满足 `Handler`（等价于生成 `handle`：调用闭包 → 写回 `res` → `Ok(())`）；需要精细控制响应头 / 错误路径时再显式 `impl Handler`（§3.3.1）。上例 `Server` 即 `std::net::http::Server`（内部封装 `ServeMux`，见 §3.3.1）。
 
 **对照 Rust（Tokio）**——MusLang 省掉的正是这几行：
 
@@ -1164,11 +1181,11 @@ async fn main() {        // ← MusLang 的 main 是同步的
 | 已有决策 | 本小节（D-19）的衔接 |
 |---|---|
 | **D-8 双 runtime**（§3.7.3） | event loop **属于 `muslang-rt`**（MusLang 原生布局：胖指针、`Waker`、类型化任务）；rt-c 侧由 C 的 event loop（libuv 等）通过 `FfiFuture`（FR-044）驱动 MusLang future，**两侧 executor 不共享任务队列**（避免"双堆税"，见 D-8 L2 hosted） |
-| **D-2 默认 C99 后端**（FR-032） | event loop **用 C 实现**（`epoll` 直接 syscall、`fd_set` 操作），通过 `std::sys` 调用；MusLang 侧只定义 `Future` / `Waker` trait 与状态机 IR。C99 后端**不需要生成 async 运行时代码**，只需生成正确的状态机 + 调用 C 的 event loop API——**这是 C99 后端能落地 async 的关键** |
+| **D-2 默认 C99 后端**（FR-032） | event loop 的**调度核心、`Waker`、任务类型属 muslang-rt**（D-8）；其系统调用（`epoll` 等）经 `std::sys` 发出（D-10：std 底层走 rt-c）。「用 C 实现」指**编译产物为 C99**（D-2 后端），非指 event loop 归属 rt-c。C99 后端**不需要生成 async 运行时代码**，只需生成正确的状态机 + 调用 event loop API——**这是 C99 后端能落地 async 的关键** |
 | **FR-044 FfiFuture** | rt / rt-c 边界处的 future 转换点；C 侧 event loop 驱动 MusLang future 的统一 ABI |
 | **D-13 泛型单态化**（§3.9） | **event loop 内部统一使用 `Box<dyn Future>`（trait object），不做泛型单态化**——理由：① executor 是运行时组件，一次虚调用的开销相对 I/O 等待可忽略；② 避免 `Spawn<F>` 泛型爆炸（编译器前端、任务调度器本身是泛型重灾区，单态化会威胁 `<8KB` 与编译速度）。**这是 D-13「不引入类型擦除」规则的唯一明确例外**，因它属于运行时而非语言抽象层 |
 | **§3.3.1 `net::http` API** | API 形状（Handler / ServeMux / Client）**完全不变**——D-19 只规定"谁来驱动这些 async 函数"，不改用户可见接口 |
-| **§3.2.3.1 `defer` + async 取消**（D-12） | 取消仅在 `.await` 点、协作式；event loop 在连接关闭 / 超时（`Context` 取消）时 **drop 未完成的 future**，触发 `defer` / `errdefer` 清理（规则三），资源不变量由 D-12 保证 |
+| **§3.2.3.1 `defer` + async 取消**（D-12） | 取消仅在 `.await` 点、协作式；event loop 在连接关闭 / 超时（`Context` 取消）时 **drop 未完成的 future**，触发 `defer` 清理（规则三；取消非错误返回，`errdefer` 不执行），资源不变量由 D-12 保证 |
 | **D-16 自举**（§3.12） | 编译器前端（MusLang 写）**不依赖 `std::net`**（编译期无需网络），自举链不受 event loop 影响；Stage 1 编译自身不要求 event loop 可用 |
 | **D-9 按需链接** | event loop 与 `std::net` 同 section 归属，**不用即剔除**，是 D-9「用哪个链哪个」的直接实例 |
 
@@ -1182,8 +1199,8 @@ async fn main() {        // ← MusLang 的 main 是同步的
 | 4 | MVP 线程模型 | **单线程 epoll**，一个 loop 处理全部连接 |
 | 5 | 多线程 / work-stealing | **P1**（FR-047），`Server::listen` 签名不变、内部扩展 |
 | 6 | io_uring | **P1**，MVP 用 epoll |
-| 7 | 任务池 | 固定 256 槽，**无动态扩容**（MVP） |
-| 8 | Executor 内部用 trait object 还是单态化 | **`Box<dyn Future>`（trait object）**——D-13 的唯一例外，避免泛型爆炸 |
+| 7 | 就绪队列 | 固定 256 深度，**无动态扩容**（MVP）；每连接一个 future，挂起不占运行槽 |
+| 8 | Executor 内部用 trait object 还是单态化 | **`Box<dyn Future>`（trait object）**——D-13 的第一个例外（第二个为 D-20 分配器注入），避免泛型爆炸 |
 | 9 | 不用 `std::net` 时 | event loop **完全不链接**，`<8KB` 可达（D-11） |
 | 10 | 嵌入 C 事件循环 / 内核场景 | **不使用 `std::net`**，自行基于 `std::sys` + `FfiFuture` 实现 |
 | 11 | P5「零运行时」口径 | **零强制运行时**：可选、不用不链、用了也透明（§3.15.4） |
@@ -1191,376 +1208,9 @@ async fn main() {        // ← MusLang 的 main 是同步的
 #### 3.15.8 待办（实现期跟进，非语言决策）
 
 - [ ] **体积基准**：实测 `Hello, World`（无 `net`）vs `Hello, World` + `use std::net` + `listen` 的二进制增量，确认 event loop < 20KB（D-11 验收口径）；
-- [ ] **任务池上限配置**：256 为拟定默认值，实现期若实测不够需通过 `Server::with_config` 暴露，**但 MVP 不允许动态扩容**（避免隐式分配，P1）；
+- [ ] **就绪队列深度配置**：256 为拟定默认值，实现期若实测不够需通过 `Server::with_config` 暴露，**但 MVP 不允许动态扩容**（避免隐式分配，P1）；
 - [ ] **取消传播测试**：连接被 event loop 关闭时，`defer` / `errdefer` 执行顺序须符合 §3.2.3.1 规则三（纳入 D-12 `unsafe_examples/`）；
 - [ ] **io_uring 评估门槛**：P1 立项条件 = epoll 在 LoongArch64 / ARM64 上实测达不到目标吞吐（10 万连接 < 500MB，§4.1）。
-
----
-
-
-
-| 指标 | 目标 | 参考 |
-|---|---|---|
-| 编译速度 | 增量 < 1s，全量 < 10s（中等项目） | Zig 同级 |
-| 链接速度 | < 500ms（中等项目，muslink） | mold/lld 同级 |
-| 二进制体积 | **L1 core**（不含 std、不含编译器）裸启动 **< 8KB**；测量协议：`x86_64-linux-musl`、`-Oz -flto`、静态链接、无动态加载（详见 §3.7 D-11） | Zig ~4KB |
-| 运行时开销 | 零（无 GC、无运行时） | Zig 同级 |
-| 内存安全 | 编译期保证，零 `unsafe` 块 | Rust 同级 |
-| 并发吞吐 | 10 万连接 < 500MB | 优于 Go（无 GC 压力）|
-
-## 4. 非功能需求
-
-### 4.1 性能指标
-
-| 指标 | 目标 | 参考 |
-|---|---|---|
-| 编译速度 | 增量 < 1s，全量 < 10s（中等项目） | Zig 同级 |
-| 链接速度 | < 500ms（中等项目，muslink） | mold/lld 同级 |
-| 二进制体积 | **L1 core**（不含 std、不含编译器）裸启动 **< 8KB**；测量协议：`x86_64-linux-musl`、`-Oz -flto`、静态链接、无动态加载（详见 §3.7 D-11） | Zig ~4KB |
-| 运行时开销 | 零（无 GC、无运行时） | Zig 同级 |
-| 内存安全 | 编译期保证，零 `unsafe` 块 | Rust 同级 |
-| 并发吞吐 | 10 万连接 < 500MB | 优于 Go（无 GC 压力）|
-
-### 4.2 兼容性
-
-- C ABI：100% 兼容 System V AMD64 / AAPCS64
-- C++ 互操作：**1.0 边界**（详见 §3.11，D-15）：vtable = Itanium C++ ABI、异常禁止跨越 FFI 边界、RTTI 不支持、模板须 C++ 侧预实例化；复杂类型用不透明指针 + 包装函数
-- 交叉编译：x86_64、ARM64、LoongArch64、RISC-V
-- 操作系统：Linux（统信 UOS/银河麒麟）、macOS、Windows
-
-### 4.3 安全模型
-
-#### 4.3.1 内存安全保证
-
-| 保证 | 机制 | 与 Rust 差异 |
-|---|---|---|
-| 无 use-after-free | 借用检查 + 生命周期 | 同 |
-| 无双重释放 | 移动语义（值不可复制时） | 同 |
-| 无缓冲区溢出 | 切片边界检查（debug 模式） | 同 |
-| 无空指针解引用 | `Option<T>` + 不可为空指针 | **Zig 风格：`*T` 不可空** |
-| 无数据竞争 | `Send`/`Sync` trait | 同 |
-
-#### 4.3.2 安全边界审计
-
-> **关键差异**：Rust 使用 `unsafe` 块标记不安全代码，MusLang 使用**类型标注**标记不安全边界。
-
-```rust
-// Rust：块级标注
-unsafe {
-    let ptr = 0xDEADBEEF as *mut i32;  // 不安全的块
-    *ptr = 42;
-}
-
-// MusLang：类型级标注
-fn kernel_mmap(addr: usize) -> *allowzero u8 {  // 返回类型即标注
-    // ...
-}
-
-// 调用处无需 unsafe 块，但类型标注使审计精确到签名
-let ptr: *allowzero u8 = kernel_mmap(0x1000);  // 审计清单记录此调用
-```
-
-**审计清单生成**（编译器内置）：
-
-```yaml
-# muslangc --emit audit 输出
-ffi_boundaries:
-  - file: kernel/mmap.mus
-    line: 42
-    function: kernel_mmap
-    unsafe_type: "*allowzero u8"
-    reason: "MMIO 映射，地址可为 0"
-  - file: ffi/v8.mus
-    line: 15
-    function: v8_init
-    extern: "C"
-    reason: "V8 引擎初始化"
-```
-
-#### 4.3.3 其他安全维度
-
-- FFI 安全：`extern` 声明即标志，类型系统区分安全/不安全
-- 供应链安全：自举后零外部语言依赖
-- 审计：所有 FFI 调用可审计（见 §4.3.2）
-
-### 4.4 可用性
-
-| 维度 | 目标 |
-|---|---|
-| 学习曲线 | Rust 开发者零学习成本，Zig 开发者 1 天上手 |
-| 错误信息 | 友好、精准、带修复建议（对标 Rust） |
-| 文档 | 语言参考、标准库文档、教程、示例 |
-| 工具链 | 格式化、LSP、DWARF 调试信息 |
-
----
-
-## 5. 错误处理规范
-
-> **新增章节**：明确 MusLang 的错误处理模型，确保与 Rust 一致且与 Zig 互操作兼容。
-
-### 5.1 错误模型
-
-MusLang 采用 **Rust 风格 Result + ？传播** 模型[citation:21][citation:24]：
-
-```rust
-// 函数返回 Result<T, E>
-fn parse_config(path: &str) -> Result<Config, ConfigError> {
-    let data = fs::read_to_string(path)?;       // ? 传播错误
-    let config = serde_json::from_str(&data)?;  // ? 自动类型转换（如有 From 实现）
-    Ok(config)
-}
-
-// 调用方：必须显式处理
-match parse_config("app.json") {
-    Ok(config) => use_config(config),
-    Err(e) => log_error(e),
-}
-```
-
-### 5.2 错误类型体系
-
-| 类型 | 用途 | 对应 Zig |
-|---|---|---|
-| `Result<T, E>` | 可恢复错误（必须有 Error trait 实现） | `error union` (`!T`) |
-| `Option<T>` | 值可能不存在 | `?T` |
-| `panic!` | 不可恢复（编程错误） | `@panic` |
-
-### 5.3 后端映射
-
-> **MVP 默认后端为 C99**（见 FR-032 / D-2），错误模型直接落为 C 的 `errno` + 返回码约定；Zig 后端（P2）映射保留如下供远期参考。
-
-**C99 后端（默认）**：`Result<T, E>` → 返回值 + `errno` / 输出参数；`Option<T>` → 哨兵值或 `_Bool ok`；`?` → `goto err` 或早期返回；`panic!()` → `abort()`。
-
-**Zig 后端（P2，远期）**：
-
-| MusLang | Zig 后端输出 |
-|---|---|
-| `Result<T, E>` | `E!T`（error union） |
-| `Option<T>` | `?T` |
-| `?`（传播） | `try` |
-| `panic!()` | `@panic()` |
-
-### 5.4 `extern` 函数的错误处理
-
-```rust
-// C 函数返回错误码 → 自动包装为 Result
-extern "C" {
-    fn open(path: *const c_char, flags: c_int) -> c_int;  // 返回 -1 = 错误
-}
-
-// MusLang 包装（编译器或手写）：
-fn open(path: &str) -> Result<c_int, IoError> {
-    let fd = unsafe_open(path, O_RDONLY);  // *allowzero 边界
-    if fd < 0 {
-        Err(IoError::from_errno())
-    } else {
-        Ok(fd)
-    }
-}
-```
-
----
-
-## 6. 测试策略
-
-> **新增章节**：明确测试层级、工具链、CI 集成要求。
-
-### 6.1 测试层级
-
-| 层级 | 工具/框架 | 覆盖范围 |
-|---|---|---|
-| 单元测试 | 内置 `#[test]`（同 Rust） | 函数/模块级 |
-| 集成测试 | `tests/` 目录 | 跨模块交互 |
-| 属性测试 | `proptest` 移植（P1） | 泛型/协议 |
-| FFI 测试 | `@cImport` 双向调用 | C/C++ 互操作 |
-| 差分测试 | Rust 版本对照（自举阶段） | 编译器正确性 |
-| 基准测试 | `#[bench]` + Criterion 移植 | 性能回归 |
-
-### 6.2 编译器测试基础设施
-
-```
-tests/
-├── unit/              # 单元测试（每个模块对应 .mus 文件）
-│   ├── ownership/
-│   ├── typecheck/
-│   └── codegen/
-├── integration/       # 集成测试（完整编译 + 运行）
-│   ├── hello_world.mus
-│   ├── ffi_c_call.mus
-│   └── http_server.mus
-├── fuzz/              # 模糊测试
-│   ├── fuzz_parser/
-│   └── fuzz_typecheck/
-├── spec/              # 语言规范一致性测试（逐条对应 RFC）
-└── bootstrap/         # 自举验证
-    ├── stage1_rust/   # Rust 写的前端
-    └── stage2_muslang/ # MusLang 写的前端（自举后）
-```
-
-### 6.3 CI/CD 要求
-
-| 平台 | 编译器 | 目标架构 | 频率 |
-|---|---|---|---|
-| Linux x86_64 | Zig 0.16+ | x86_64, ARM64 (cross) | 每次提交 |
-| Linux ARM64 | Zig 0.16+ | ARM64 | 每次 PR |
-| macOS | Zig 0.16+ | x86_64, ARM64 | 每次 PR |
-| Windows | Zig 0.16+ | x86_64 | 每次 PR |
-| 统信 UOS (LoongArch64) | Zig + muslink | LoongArch64 | 每日 |
-
----
-
-## 7. 与 MusCat 生态的集成
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    MusCat 生态全栈                           │
-│                                                             │
-│  语言层：MusLang（Rust 语法 + Zig 安全 + Go 网络）           │
-│    ├── MusKitty 内核（Layer 1-6）                           │
-│    ├── MusCat 主程序（壳 + 内核加载器）                      │
-│    ├── 内核 dll 适配层（Chromium/Gecko）                     │
-│    ├── 私有 Cookie 协议（CBOR + 加密 + 审计）                │
-│    ├── MCP Server（共用，多租户隔离）                        │
-│    └── JS 引擎后端（V8/SpiderMonkey 适配）                   │
-│                                                             │
-│  构建链：MusLang 源码 → muslangc → Zig 后端 → .o            │
-│        → muslink（自研链接器）→ 极小 ELF64 二进制            │
-│  自举：muslangc（MusLang 写）+ muslink（MusLang 写）         │
-│  信创：LoongArch64/ARM64 + 国密 SM2/SM3/SM4                 │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**关键设计**：MusLang 的网络标准库直接复用 MusKitty Layer 5 的网络栈——一套实现，全生态复用。信创场景自动用国密，Agent 场景自动审计。
-
----
-
-## 8. 开发阶段与时间线
-
-### 阶段一：Bootstrap（2026 Q1-Q2）
-
-| 里程碑 | 交付物 | 验收标准 |
-|---|---|---|
-| 里程碑 | 交付物 | 验收标准 |
-|---|---|---|
-| **M1-0** | **决策冻结（2 周）** | `spec/`：`grammar.ebnf`、`memory-model.md`、`unsafe.md`、`backend-c99.md`、`std-sys.md`；D-0~D-11 定稿（**前置门槛，未冻结不进 M1-1） |
-| M1-1 | MusLang 语法定义（类 Rust，FR-001a+001b）| 完整 grammar 文件 + 100% 语法测试通过 |
-| M1-2 | 所有权检查器 v0.1 | 通过 Rust 测试用例子集（NLL 除外） |
-| M1-3 | `*allowzero` 类型系统 | 类型检查 + 代码生成 + FFI 审计清单 |
-| M1-4 | `@cImport` C/C++ 头解析 | 能解析 MusKitty 现有 C 头文件 |
-| M1-5 | **C99 后端**代码生成 v0.1 | hello world 编译运行 |
-| M1-6 | `net` 标准库第一版（TCP/HTTP 客户端）| 能通过 HTTP/1.1 访问真实服务 |
-| M1-7 | MusLang 编译器 v0.1（Rust 写）| 端到端编译 + 测试通过 |
-| M1-8 | 链接器集成：调用 Zig LLD，支持 `--gc-sections` | hello world 静态链接 < 16KB |
-
-> **v0.4 裁剪建议（独立成立）**：M1 仍偏重，建议仅保 **Rust→C 单向导入**；C++ / Zig 后端 / 自举推至 v1.x。即便 kernel 移出 MVP，此裁剪仍成立。
-
-### 阶段二：MusKitty 内核开发（2026 Q3-Q4）
-
-| 里程碑 | 交付物 | 验收标准 |
-|---|---|---|
-| M2-1 | MusKitty Layer 1-4（基础）| 内核态基本功能（内存、进程、IPC） |
-| M2-2 | MusKitty Layer 5（网络接驳）| TCP/UDP 可用，HTTP 服务可运行 |
-| M2-3 | MusKitty Layer 6（JS 引擎适配）| V8/SpiderMonkey 可在内核态运行 |
-| M2-4 | 统信 UOS / 银河麒麟适配 | 在真机上启动并运行基础服务 |
-| M2-5 | 国密 SM2/SM3/SM4 集成 | 通过国密算法一致性测试 |
-| M2-6 | Freestanding 链接 + 自定义链接脚本 | 内核镜像可直接加载 |
-
-### 阶段三：自举与信创（2027 Q1-Q4）
-
-| 里程碑 | 交付物 | 验收标准 |
-|---|---|---|
-| M3-1 | MusLang 编译器 v0.2（MusLang 写，**前端**；后端仍 Rust，见 §3.12 D-16）| 能编译自身 AST + 类型检查，通过 Stage 1 构建 |
-| M3-2 | MusLang 编译器 v0.3（**完整功能，含 C99 后端 MusLang 化**）| 全量功能等价 Rust 版本，Stage 1 == Stage 2 语义等价（确定性输出，见 §3.12.4）|
-| M3-3 | **自持闭环**（v0.3 编译 v0.3，Stage 2）| 用 MusLang 版编译器重新编译自身，产出与 Stage 1 **SHA-256 一致**（可重现构建）|
-| M3-4 | 信创测评送测 | 通过 100% 测试用例 |
-| M3-5 | 100% 信创替代达标 | 工具链零外部语言依赖 |
-| M3-6 | `muslink` v0.1（MusLang 写的极简 ELF64 链接器）| 能链接 hello world + 内核镜像 |
-| M3-7 | 全工具链纯自主验证（muslangc + muslink，零外部依赖）| 从源码到二进制完全自主 |
-
----
-
-## 9. 语法示例
-
-```rust
-// hello.mus
-use net::http;
-
-struct Server {
-    addr: String,
-}
-
-impl Server {
-    fn new(addr: &str) -> Self {
-        Server { addr: addr.to_string() }
-    }
-    
-    async fn handle(&self, req: http::Request) -> http::Response {
-        http::Response::ok("Hello, MusLang!")
-    }
-}
-
-// FFI：extern 就是标志，不需要 unsafe 块
-extern "C" {
-    fn v8_init() -> i32;
-}
-
-fn main() {
-    let ret = v8_init();  // 调用 extern 函数，无 unsafe 块
-    if ret != 0 {
-        panic!("v8 init failed");
-    }
-    
-    let server = Server::new("0.0.0.0:8080");
-    server.listen().await;
-}
-```
-
-### 与 Rust 的关键差异
-
-| 特性 | Rust | MusLang |
-|---|---|---|
-| 裸指针 | `*mut T` / `*const T` | `*allowzero T` / `*const T` |
-| `unsafe` 块 | `unsafe { ... }` | ❌ 无 |
-| FFI | `unsafe extern "C" { ... }` | `extern "C" { ... }` |
-| 网络 | `tokio::net` | `net::tcp`（内置标准库）|
-| 分配器 | 隐式（Box/Vec） | 显式传递（Zig 风格）|
-| 链接器 | 依赖外部 ld/lld | **内置 LLD + 自研 muslink** |
-| 二进制体积 | 中等 | ~4KB hello |
-| 资源管理 | RAII（Drop trait） | `defer` 语句 |
-| 错误传播 | `?` | `?`（同） |
-| 可选值 | `Option<T>` | `Option<T>`（同） |
-| 元编程 | 泛型 + 宏 | 待定（见 §12） |
-
----
-
-## 10. 成功指标
-
-| 指标 | 目标值 | 测量方法 |
-|---|---|---|
-| 信创测评通过 | 100% | 信创测评报告 |
-| MusKitty 内核内存安全 | 零 CVE（内存安全类）| Coverity + 模糊测试 |
-| 二进制体积 | **L1 core** hello world < 8KB（不含 std/编译器，见 §4.1 测量协议）| `size` 命令 |
-| 编译速度 | 增量 < 1s | 自动化基准 |
-| 链接速度 | < 500ms（中等项目）| 自动化基准 |
-| MCP Server 并发 | 10 万连接稳定 | 压力测试（wrk/vegeta） |
-| 自持 | 编译器自举成功 | 三阶段自举验证 |
-| 链接器自主 | muslink 可用，信创纯自主模式可选 | 完整链接测试 |
-
----
-
-## 11. 风险与缓解
-
-| 风险 | 概率 | 影响 | 缓解措施 |
-|---|---|---|---|
-| Zig 后端不稳定（Zig 未 1.0）| 高 | 高 | 锁定 Zig 版本，维护兼容层；保留 Rust 后端作为 fallback |
-| Zig async 模型变更（0.15+ 移除 async 关键字）| 高 | 中 | MusLang 自有 async/await → 状态机 IR，后端映射灵活 |
-| 所有权检查器复杂度超预期 | 中 | 高 | 简化设计，先支持核心特性（NLL 延后） |
-| 信创 Deadline 紧迫 | 中 | 高 | 聚焦 MusKitty，MusLang 先 Rust 后端 |
-| 自举编译器调试困难 | 高 | 中 | 差分测试，Rust 版对照；保留完整测试套件 |
-| C++ 复杂类型映射不全 | 中 | 中 | 不透明指针 + 包装函数 |
-| LLD 依赖断供风险 | 低 | 高 | Fork Zig LLD 到 Gitee；muslink 作为纯自主后备 |
-| muslink 开发延期 | 中 | 中 | 阶段一/二先用 Zig LLD，muslink 作为阶段三目标 |
-| 社区生态匮乏 | 高 | 中 | 阶段一/二不追求生态，聚焦 MusCat 内部使用；阶段三再开放社区 |
 
 ---
 
@@ -1621,7 +1271,7 @@ fn main() {
 
 #### 3.16.3 `Box` 的释放方式（选项 c：作用域退出自动 free，底层仍是 `defer`）
 
-> **决定**：`Box`（以及所有拥有堆内存的安全抽象）在**作用域退出时自动释放**，无需用户手写 `defer box.free()`。底层实现机制 = 编译器隐式插入 `defer`，**与 §3.2.3「`defer` 替代 RAII」不矛盾**——只是把 `defer` 隐藏在语言内置类型里。
+> **决定**：`Box`（以及所有拥有堆内存的安全抽象）在**作用域退出时自动释放**，无需用户手写 `defer box.free()`。底层实现机制 = 编译器隐式插入 `defer`，**与 §3.2.3「`defer` 替代 RAII」不矛盾**——只是把 `defer` 隐藏在语言内置类型里；且 `defer` 全路径执行（§3.2.3.1 规则二），故 `Box` 在 `?` 错误路径同样被释放、不泄漏。
 
 ```rust
 fn process() {
@@ -1637,9 +1287,9 @@ fn process() {
 ```
 
 - **为何不直接引入 `Drop` trait**：`Box` 的释放是**语言内置、不可用户自定义**的——只有 `Box`/`Vec`/`HashMap` 等标准库拥有类型享有此隐式 `defer`，用户自定义类型**仍需手写 `defer`**（保持 P1「零隐藏控制流」：用户代码的清理必须可见）；
-- **与 `defer`/`errdefer` 的执行顺序**：隐式 `defer box.free()` **排在用户显式 `defer` 之前**（LIFO，先注册先执行），保证用户 `defer` 可安全访问 `Box` 内容；
+- **与 `defer`/`errdefer` 的执行顺序**：隐式 `defer box.free()` 与用户显式 `defer` 共享同一条 LIFO 清理栈（注册点 = `Box` 创建点）——在其后注册的用户 `defer` **先**执行，之后才轮到 `box.free()`，保证用户 `defer` 可安全访问 `Box` 内容；
 - **跨 `.await` 的 `Box`**：遵循 §3.2.3.1 规则三——`Box` 是同步资源，状态机丢弃时其隐式 `defer free` 照常执行；
-- **`?` 提前返回**：走规则二，仅 `errdefer` 链 + 隐式 `defer free` 均执行（资源不泄漏）；
+- **`?` 提前返回**：`defer` 在错误路径同样执行（§3.2.3.1 规则二，Zig 语义），隐式 free 与 `errdefer` 链按注册逆序交错执行——`Box` 不泄漏；
 - **显式放弃所有权**：`Box::into_raw` / `Box::leak` 仍可用（对应 D-7 移交语义，见 §3.8）。
 
 > **P8 与 P1 的平衡**：`Box` 自动释放是"壳"的体验（Rust 用户零学习），但**底层机制是 `defer`、且 `muslangc --emit audit` 会列出所有隐式 free 调用点**——审计粒度仍在，不牺牲 P3「类型即安全边界」。
@@ -1715,9 +1365,355 @@ fn main() {
 
 ---
 
+## 4. 非功能需求
+
+### 4.1 性能指标
+
+| 指标 | 目标 | 参考 |
+|---|---|---|
+| 编译速度 | 增量 < 1s，全量 < 10s（中等项目） | Zig 同级 |
+| 链接速度 | < 500ms（中等项目，muslink） | mold/lld 同级 |
+| 二进制体积 | **L1 core**（不含 std、不含编译器）裸启动 **< 8KB**；测量协议：`x86_64-linux-musl`、`-Oz -flto`、静态链接、无动态加载（详见 §3.7 D-11） | Zig ~4KB |
+| 运行时开销 | 零（无 GC、无运行时） | Zig 同级 |
+| 内存安全 | 编译期保证，零 `unsafe` 块 | Rust 同级 |
+| 并发吞吐 | 10 万连接 < 500MB | 优于 Go（无 GC 压力）|
+
+### 4.2 兼容性
+
+- C ABI：100% 兼容 System V AMD64 / AAPCS64
+- C++ 互操作：**1.0 边界**（详见 §3.11，D-15）：vtable = Itanium C++ ABI、异常禁止跨越 FFI 边界、RTTI 不支持、模板须 C++ 侧预实例化；复杂类型用不透明指针 + 包装函数
+- 交叉编译：x86_64、ARM64、LoongArch64、RISC-V
+- 操作系统：Linux（统信 UOS/银河麒麟，**实装**）；macOS、Windows（架构就绪 + stub，D-9，实装后续）
+
+### 4.3 安全模型
+
+#### 4.3.1 内存安全保证
+
+| 保证 | 机制 | 与 Rust 差异 |
+|---|---|---|
+| 无 use-after-free | 借用检查 + 生命周期 | 同 |
+| 无双重释放 | 移动语义（值不可复制时） | 同 |
+| 无缓冲区溢出 | 切片边界检查（**全模式开启**，越界 → panic → abort；性能逃逸须走裸指针 + 审计清单，D-4） | 同（Rust 亦全模式检查） |
+| 无空指针解引用 | `Option<T>` + 不可为空指针 | **Zig 风格：`*T` 不可空** |
+| 无数据竞争 | `Send`/`Sync` trait | 同 |
+
+#### 4.3.2 安全边界审计
+
+> **关键差异**：Rust 使用 `unsafe` 块标记不安全代码，MusLang 使用**类型标注**标记不安全边界。
+
+```rust
+// Rust：块级标注
+unsafe {
+    let ptr = 0xDEADBEEF as *mut i32;  // 不安全的块
+    *ptr = 42;
+}
+
+// MusLang：类型级标注
+fn kernel_mmap(addr: usize) -> *allowzero u8 {  // 返回类型即标注
+    // ...
+}
+
+// 调用处无需 unsafe 块，但类型标注使审计精确到签名
+let ptr: *allowzero u8 = kernel_mmap(0x1000);  // 审计清单记录此调用
+```
+
+**审计清单生成**（编译器内置）：
+
+```yaml
+# muslangc --emit audit 输出
+ffi_boundaries:
+  - file: kernel/mmap.mus
+    line: 42
+    function: kernel_mmap
+    unsafe_type: "*allowzero u8"
+    reason: "MMIO 映射，地址可为 0"
+  - file: ffi/v8.mus
+    line: 15
+    function: v8_init
+    extern: "C"
+    reason: "V8 引擎初始化"
+```
+
+#### 4.3.3 其他安全维度
+
+- FFI 安全：`extern` 声明即标志，类型系统区分安全/不安全
+- 供应链安全：自举后零外部语言依赖
+- 审计：所有 FFI 调用可审计（见 §4.3.2）
+
+### 4.4 可用性
+
+| 维度 | 目标 |
+|---|---|
+| 学习曲线 | Rust 开发者零学习成本，Zig 开发者 1 天上手 |
+| 错误信息 | 友好、精准、带修复建议（对标 Rust） |
+| 文档 | 语言参考、标准库文档、教程、示例 |
+| 工具链 | 格式化、LSP、DWARF 调试信息 |
+
+---
+
+## 5. 错误处理规范
+
+> **新增章节**：明确 MusLang 的错误处理模型，确保与 Rust 一致且与 Zig 互操作兼容。
+
+### 5.1 错误模型
+
+MusLang 采用 **Rust 风格 `Result<T, E>` + `?` 传播**模型：
+
+```rust
+// 函数返回 Result<T, E>
+fn parse_config(path: &str) -> Result<Config, ConfigError> {
+    let data = fs::read_to_string(path)?;       // ? 传播错误
+    let config = encoding::json::from_str(&data)?;  // ? 自动类型转换（如有 From 实现）
+    Ok(config)
+}
+
+// 调用方：必须显式处理
+match parse_config("app.json") {
+    Ok(config) => use_config(config),
+    Err(e) => log_error(e),
+}
+```
+
+### 5.2 错误类型体系
+
+| 类型 | 用途 | 对应 Zig |
+|---|---|---|
+| `Result<T, E>` | 可恢复错误（必须有 Error trait 实现） | `error union` (`!T`) |
+| `Option<T>` | 值可能不存在 | `?T` |
+| `panic!` | 不可恢复（编程错误） | `@panic` |
+
+### 5.3 后端映射
+
+> **MVP 默认后端为 C99**（见 FR-032 / D-2），错误模型直接落为 C 的 `errno` + 返回码约定；Zig 后端（P2）映射保留如下供远期参考。
+
+**C99 后端（默认）**：`Result<T, E>` → 返回值 + `errno` / 输出参数；`Option<T>` → 哨兵值或 `_Bool ok`；`?` → `goto err` 或早期返回；`panic!()` → `abort()`。
+
+**Zig 后端（P2，远期）**：
+
+| MusLang | Zig 后端输出 |
+|---|---|
+| `Result<T, E>` | `E!T`（error union） |
+| `Option<T>` | `?T` |
+| `?`（传播） | `try` |
+| `panic!()` | `@panic()` |
+
+### 5.4 `extern` 函数的错误处理
+
+```rust
+// C 函数返回错误码 → 自动包装为 Result
+extern "C" {
+    fn open(path: *const c_char, flags: c_int) -> c_int;  // 返回 -1 = 错误
+}
+
+// MusLang 包装（编译器或手写；命名避开 extern 声明的 open，防同名遮蔽）：
+fn open_file(path: &str) -> Result<c_int, IoError> {
+    let fd = open(path.as_ptr(), O_RDONLY);  // FFI 调用点：纳入 D-4 审计清单
+    if fd < 0 {
+        Err(IoError::from_errno())
+    } else {
+        Ok(fd)
+    }
+}
+```
+
+---
+
+## 6. 测试策略
+
+> **新增章节**：明确测试层级、工具链、CI 集成要求。
+
+### 6.1 测试层级
+
+| 层级 | 工具/框架 | 覆盖范围 |
+|---|---|---|
+| 单元测试 | 内置 `#[test]`（同 Rust） | 函数/模块级 |
+| 集成测试 | `tests/` 目录 | 跨模块交互 |
+| 属性测试 | `proptest` 移植（P1） | 泛型/协议 |
+| FFI 测试 | `@cImport` 双向调用 | C/C++ 互操作 |
+| 差分测试 | Rust 版本对照（自举阶段） | 编译器正确性 |
+| 基准测试 | `#[bench]` + Criterion 移植 | 性能回归 |
+
+### 6.2 编译器测试基础设施
+
+```
+tests/
+├── unit/              # 单元测试（每个模块对应 .mus 文件）
+│   ├── ownership/
+│   ├── typecheck/
+│   └── codegen/
+├── integration/       # 集成测试（完整编译 + 运行）
+│   ├── hello_world.mus
+│   ├── ffi_c_call.mus
+│   └── http_server.mus
+├── fuzz/              # 模糊测试
+│   ├── fuzz_parser/
+│   └── fuzz_typecheck/
+├── spec/              # 语言规范一致性测试（逐条对应 RFC）
+└── bootstrap/         # 自举验证（D-16 staging 术语）
+    ├── stage0_rust/   # Stage 0：Rust 引导编译器
+    ├── stage1_muslang/ # Stage 1：MusLang 写的编译器前端
+    └── stage2/        # Stage 2：自举一致性验证（M2/M3）
+```
+
+### 6.3 CI/CD 要求
+
+| 平台 | 工具链（D-2：MVP 默认 C99 后端） | 目标架构 | 频率 |
+|---|---|---|---|
+| Linux x86_64 | muslangc（C99）+ cc/clang | x86_64, ARM64 (cross) | 每次提交 |
+| Linux ARM64 | muslangc（C99）+ cc/clang | ARM64 | 每次 PR |
+| macOS | muslangc（C99）+ cc/clang | x86_64, ARM64 | 每次 PR |
+| Windows | muslangc（C99）+ cc/clang | x86_64 | 每次 PR |
+| 统信 UOS (LoongArch64) | muslangc（C99）+ muslink（纯自主链路验证） | LoongArch64 | 每日 |
+
+---
+
+## 7. 与 MusCat 生态的集成
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    MusCat 生态全栈                           │
+│                                                             │
+│  语言层：MusLang（Rust 语法 + Zig 安全 + Go 网络）           │
+│    ├── MusKitty 内核（Layer 1-6）                           │
+│    ├── MusCat 主程序（壳 + 内核加载器）                      │
+│    ├── 内核 dll 适配层（Chromium/Gecko）                     │
+│    ├── 私有 Cookie 协议（CBOR + 加密 + 审计）                │
+│    ├── MCP Server（共用，多租户隔离）                        │
+│    └── JS 引擎后端（V8/SpiderMonkey 适配）                   │
+│                                                             │
+│  构建链：MusLang 源码 → muslangc → C99 后端（MVP 默认，D-2）  │
+│        → .c → cc/clang → .o → muslink（自研）/ LLD → ELF64   │
+│  自举：muslangc 前端（MusLang 写）+ 后端（Rust 写，D-16）     │
+│  信创：LoongArch64/ARM64 + 国密 SM2/SM3/SM4                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**关键设计**：MusLang 的网络标准库直接复用 MusKitty Layer 5 的网络栈——一套实现，全生态复用。信创场景自动用国密，Agent 场景自动审计。
+
+---
+
+## 8. 开发阶段与时间线
+
+> **v0.4.6 时间线顺延**：原阶段一（2026 Q1-Q2）的起点早于本文档评审时点（2026-09-05），三阶段整体顺延——M1 = 2026 Q4-2027 Q1、M2 = 2027 Q2-Q3、M3 = 2027 Q4-2028 Q4（§3.12.3 / §3.13.3 / §3.14.3 同步）。
+
+### 阶段一：Bootstrap（2026 Q4-2027 Q1）
+
+| 里程碑 | 交付物 | 验收标准 |
+|---|---|---|
+| **M1-0** | **决策冻结（2 周）** | `spec/`：`grammar.ebnf`、`memory-model.md`、`unsafe.md`、`backend-c99.md`、`std-sys.md`；D-0~D-20 收口（已定 15 项生效；D-0/D-3/D-5/D-6 冻结、D-4 落地、D-11 确认）（**前置门槛，未冻结不进 M1-1） |
+| M1-1 | MusLang 语法定义（类 Rust，FR-001a+001b）| 完整 grammar 文件 + 100% 语法测试通过 |
+| M1-2 | 所有权检查器 v0.1 | 通过 Rust 测试用例子集（NLL 除外） |
+| M1-3 | `*allowzero` 类型系统 | 类型检查 + 代码生成 + FFI 审计清单 |
+| M1-4 | `@cImport` C/C++ 头解析 | 能解析 MusKitty 现有 C 头文件 |
+| M1-5 | **C99 后端**代码生成 v0.1 | hello world 编译运行 |
+| M1-6 | `net` 标准库第一版（TCP/HTTP 客户端）| 能通过 HTTP/1.1 访问真实服务 |
+| M1-7 | MusLang 编译器 v0.1（Rust 写）| 端到端编译 + 测试通过 |
+| M1-8 | 链接器集成：调用 Zig LLD，支持 `--gc-sections` | hello world 静态链接 < 16KB（M1 中期口径；终态 = §4.1 L1 core < 8KB） |
+
+> **v0.4 裁剪建议（独立成立）**：M1 仍偏重，建议仅保 **Rust→C 单向导入**；C++ / Zig 后端 / 自举推至 v1.x。即便 kernel 移出 MVP，此裁剪仍成立。
+
+### 阶段二：MusKitty 内核开发（2027 Q2-Q3）
+
+| 里程碑 | 交付物 | 验收标准 |
+|---|---|---|
+| M2-1 | MusKitty Layer 1-4（基础）| 内核态基本功能（内存、进程、IPC） |
+| M2-2 | MusKitty Layer 5（网络接驳）| TCP/UDP 可用，HTTP 服务可运行 |
+| M2-3 | MusKitty Layer 6（JS 引擎适配）| V8/SpiderMonkey 可在内核态运行 |
+| M2-4 | 统信 UOS / 银河麒麟适配 | 在真机上启动并运行基础服务 |
+| M2-5 | 国密 SM2/SM3/SM4 集成 | 通过国密算法一致性测试 |
+| M2-6 | Freestanding 链接 + 自定义链接脚本 | 内核镜像可直接加载 |
+
+### 阶段三：自举与信创（2027 Q4-2028 Q4）
+
+| 里程碑 | 交付物 | 验收标准 |
+|---|---|---|
+| M3-1 | MusLang 编译器 v0.2（MusLang 写，**前端**；后端仍 Rust，见 §3.12 D-16）| 能编译自身 AST + 类型检查，通过 Stage 1 构建 |
+| M3-2 | MusLang 编译器 v0.3（**完整功能，含 C99 后端 MusLang 化**）| 全量功能等价 Rust 版本，Stage 1 == Stage 2 语义等价（确定性输出，见 §3.12.4）|
+| M3-3 | **自持闭环**（v0.3 编译 v0.3，Stage 2）| 用 MusLang 版编译器重新编译自身，产出与 Stage 1 **SHA-256 一致**（可重现构建）|
+| M3-4 | 信创测评送测 | 通过 100% 测试用例 |
+| M3-5 | 100% 信创替代达标 | 工具链零外部语言依赖 |
+| M3-6 | `muslink` v0.1（MusLang 写的极简 ELF64 链接器）| 能链接 hello world + 内核镜像 |
+| M3-7 | 全工具链纯自主验证（muslangc + muslink，零外部依赖）| 从源码到二进制完全自主 |
+
+---
+
+## 9. 语法示例
+
+```rust
+// hello.mus —— FFI 无 unsafe 块 + 网络（D-19：同步 main、无 block_on、无 #[entry]）
+use std::net::http;
+
+// FFI：extern 就是标志，不需要 unsafe 块
+extern "C" {
+    fn v8_init() -> i32;
+}
+
+fn main() {
+    let ret = v8_init();  // 调用 extern 函数，无 unsafe 块
+    if ret != 0 {
+        panic!("v8 init failed");
+    }
+
+    let server = http::Server::new("0.0.0.0:8080");
+    server.handle("GET /", |req| async {
+        http::Response::ok("Hello, MusLang!")  // async 闭包经 blanket impl 满足 Handler（§3.15.3）
+    });
+    server.listen();  // ← 同步阻塞：event loop 在此启动并驱动 async Handler（D-19）
+}
+```
+
+### 与 Rust 的关键差异
+
+| 特性 | Rust | MusLang |
+|---|---|---|
+| 裸指针 | `*mut T` / `*const T` | `*allowzero T` / `*const T` |
+| `unsafe` 块 | `unsafe { ... }` | ❌ 无 |
+| FFI | `unsafe extern "C" { ... }` | `extern "C" { ... }` |
+| 网络 | `tokio::net` | `std::net::tcp`（内置标准库）|
+| 分配器 | 隐式（Box/Vec） | 默认编译期注入 + `new_in` 显式覆盖（D-20）|
+| 链接器 | 依赖外部 ld/lld | **内置 LLD + 自研 muslink** |
+| 二进制体积 | 中等 | ~4KB hello |
+| 资源管理 | RAII（Drop trait） | `defer` 语句 |
+| 错误传播 | `?` | `?`（同） |
+| 可选值 | `Option<T>` | `Option<T>`（同） |
+| 元编程 | 泛型 + 宏 | 待定（见 §12） |
+
+---
+
+## 10. 成功指标
+
+| 指标 | 目标值 | 测量方法 |
+|---|---|---|
+| 信创测评通过 | 100% | 信创测评报告 |
+| MusKitty 内核内存安全 | 零 CVE（内存安全类）| Coverity + 模糊测试 |
+| 二进制体积 | **L1 core** hello world < 8KB（不含 std/编译器，见 §4.1 测量协议）| `size` 命令 |
+| 编译速度 | 增量 < 1s | 自动化基准 |
+| 链接速度 | < 500ms（中等项目）| 自动化基准 |
+| MCP Server 并发 | 10 万连接稳定 | 压力测试（wrk/vegeta） |
+| 自持 | 编译器自举成功 | 三阶段自举验证 |
+| 链接器自主 | muslink 可用，信创纯自主模式可选 | 完整链接测试 |
+
+---
+
+## 11. 风险与缓解
+
+| 风险 | 概率 | 影响 | 缓解措施 |
+|---|---|---|---|
+| Zig 后端不稳定（Zig 未 1.0）| 高 | 高 | 锁定 Zig 版本，维护兼容层；保留 Rust 后端作为 fallback |
+| Zig async 模型变更（0.15+ 移除 async 关键字）| 高 | 中 | MusLang 自有 async/await → 状态机 IR，后端映射灵活 |
+| 所有权检查器复杂度超预期 | 中 | 高 | 简化设计，先支持核心特性（NLL 延后） |
+| 信创 Deadline 紧迫 | 中 | 高 | 聚焦 MusKitty；muslangc 先以 C99 后端交付（D-2），Rust 后端（FR-033，P1）按需补齐 |
+| 自举编译器调试困难 | 高 | 中 | 差分测试，Rust 版对照；保留完整测试套件 |
+| C++ 复杂类型映射不全 | 中 | 中 | 不透明指针 + 包装函数 |
+| LLD 依赖断供风险 | 低 | 高 | Fork Zig LLD 到 Gitee；muslink 作为纯自主后备 |
+| muslink 开发延期 | 中 | 中 | 阶段一/二先用 Zig LLD，muslink 作为阶段三目标 |
+| 社区生态匮乏 | 高 | 中 | 阶段一/二不追求生态，聚焦 MusCat 内部使用；阶段三再开放社区 |
+
+---
+
 ## 12. 开放问题分析框架
 
-> **说明**：以下开放问题保持"待定"状态，但每个问题均已补充 **分析维度、评估标准、决策时间节点**，确保后续决策有据可依。
+> **说明**：本章中 §12.1（元编程）与 §12.2（WASM）保持「待定」，均附 **分析维度、评估标准、决策时间节点**；§12.3 / §12.7 / §12.8 已定稿（分别跳转 §3.13 / §3.15 / §3.16）；§12.4~§12.6 为已作出的工程决策（调试信息 = DWARF 5；`muslink` 动态链接不支持；重定位类型清单）。
 
 ### 12.1 元编程：`comptime` vs 泛型 + 宏
 
@@ -1732,7 +1728,7 @@ fn main() {
 | 自举复杂度 | 高（需编译期解释器） | 高（宏展开管道） | 低 |
 
 **推荐方向**：阶段一采用 **方案 C（仅泛型）**，阶段二评估是否引入 `comptime`（方案 A）。理由：
-1. 语法与 Rust 100% 一致是 P0 承诺，泛型是必须的
+1. 语法形态与 Rust 高度相似（FR-001a）是 P0 承诺，泛型是必须的
 2. `comptime` 需要在自举编译器中实现完整解释器，复杂度极高
 3. Zig 的 comptime 本身仍在演进（0.15+ 大幅重构），不宜过早绑定
 
@@ -1788,6 +1784,8 @@ fn main() {
 
 **未来评估**：v2.0 阶段（2028+）根据用户需求决定是否支持。
 
+> **与 L3 的衔接说明**：L3 compat（§3.7.3）加载第三方 `.so` 的链接能力由 LLD 链路（FR-038）承担；`muslink` 纯自主模式（M3-7）以静态链接产物为主——若纯自主模式未来需要动态链接，在 v2.0 一并评估。
+
 ### 12.6 `muslink` 重定位类型支持
 
 | 架构 | 必需重定位 | 优先级 |
@@ -1813,7 +1811,7 @@ fn main() {
 **定稿结论（D-19）**：
 - 事件循环随 `use std::net` 自动链接，**不提供运行时选择**、**不引入 `#[entry]` / `block_on`**；
 - MVP = **单线程 epoll**，多线程 / work-stealing / io_uring = P1（FR-047）；
-- Executor 内部用 `Box<dyn Future>`（D-13 唯一例外）；
+- Executor 内部用 `Box<dyn Future>`（D-13 第一个例外，第二个为 D-20 分配器注入）；
 - P5「零运行时」澄清为 **「零强制运行时」**（§3.15.4）；
 - 高级替换路径：**不使用 `std::net`**，自行基于 `std::sys` + `FfiFuture` 实现。
 
@@ -1927,14 +1925,11 @@ docs/
 | 类型级安全标注 | 通过类型系统（而非代码块）标记不安全操作 |
 | FFI 审计清单 | 编译器生成的、列出所有跨越安全边界的调用点的报告 |
 | 自持闭环 | 编译器能用自身语言编译自身，不依赖其他语言的编译器 |
-| Stage1 | 用宿主语言（Rust）编写的引导编译器 |
-| Stage2 | 用目标语言（MusLang）编写的自举编译器 |
 | Freestanding | 不依赖任何操作系统服务的编译目标（如内核、裸机） |
 | GC-sections | 链接器死代码消除（Garbage Collection of Sections） |
-
-| Stage 0 | 用宿主语言（Rust）编写的引导编译器，须实现完整 MusLang 语言 |
-| Stage 1 | 用目标语言（MusLang）编写的编译器（M1 = 前端），由 Stage 0 编译 |
-| Stage 2 | 用 Stage 1 二进制重新编译同一份源码，验证自举一致性 |
+| Stage 0 | 用宿主语言（Rust）编写的引导编译器，须实现完整 MusLang 语言（D-16） |
+| Stage 1 | 用目标语言（MusLang）编写的编译器（M1 = 前端），由 Stage 0 编译（D-16） |
+| Stage 2 | 用 Stage 1 二进制重新编译同一份源码，验证自举一致性（D-16） |
 | `mktplace` | MusLang 源码级包管理器 + 工作区编排器，名称谐音 marketplace |
 | hypo | 独立的系统级软件分发工具，与 `mktplace` 各司其职 |
 | 可重现构建（Reproducible Build） | 同一源码多次构建产出比特一致的二进制，含确定性输出规范 |
@@ -1942,7 +1937,7 @@ docs/
 | executor | 任务调度器，驱动 `Future` 状态机的 `poll`；MusLang 中即 event loop 的一部分，**不暴露为独立 trait** |
 | 单线程 epoll（MVP） | D-19 的 MVP 线程模型：一个 event loop 处理全部连接，无锁、无 work-stealing |
 | work-stealing | P1 调度策略（FR-047）：多线程下任务跨 worker 窃取；MVP 不实现 |
-| `Box<dyn Future>` | executor 内部的任务存储方式（D-19）；D-13「不引入类型擦除」规则的**唯一例外**，因 executor 属运行时 |
+| `Box<dyn Future>` | executor 内部的任务存储方式（D-19）；D-13「不引入类型擦除」规则的**第一个例外**（第二个为 D-20 编译期注入），因 executor 属运行时 |
 | P5「零强制运行时」 | D-19 澄清后的 P5 准确表述：运行时可选、不用不链、用了也透明（非"二进制里完全没有运行时组件"） |
 | 编译期注入默认分配器 | D-20 的分配器机制：`Box::new(x)` 在 HIR 层重写为 `Box::new_in(x, __default_allocator)`，不产生泛型参数、不新增单态化实例 |
 | `#[default_allocator(alloc)]` | D-20 的函数级注解：将某函数内所有 `Box::new`/`Vec::new` 绑定到指定分配器；优先级高于模块级与全局兜底 |
@@ -1960,10 +1955,10 @@ docs/
 | v0.4 | 2026-09-04 | **架构决策落地**：① 定位改为「类 Rust，不保证源码兼容」（§1.1，D-1）；② 新增架构决策记录（§3.7）含互操作架构、共享方言+HIR、D-0~D-11 决策表、双 runtime（muslang-rt / muslang-rt-c）、std 三层按需链接+sys 三端可扩展；③ 补充 `unsafe` 等价判定与 CI 门禁（§3.2.1 K3，D-4）；④ 默认后端由 Zig 改为 C99（FR-032、§3.4.1、§5.3，D-2）；⑤ 异步模型改为后端无关实现（§3.6.1）；⑥ 二进制体积口径定稿为 L1 core 裸启动 `<8KB`（§4.1、§10）；⑦ 新增 M1-0 决策冻结阶段与 v0.4 裁剪建议（§8） | Yuanbao (AI) |
 | v0.4.1 | 2026-09-04 | **语义定稿**：① `defer` 与 `?`、async 取消交互规则（§3.2.3.1，D-12）：`defer`/`errdefer` 分离（错误路径仅 `errdefer`、LIFO）、`?` 提前返回只跑 `errdefer`、`async fn` 取消仅在 `.await` 点（协作式）、`defer` 禁止 `.await`（异步清理须显式 `close().await`）、5 类错误码，并附 Zig 官方文档 + Rust Internals + Tokio 引用（§15.1）；② 跨 `.so` 所有权移交协议 A+C 混合、函数级策略一致性（§3.8，D-7 定稿）：A 严格移交 / C 标注协议（`#[muslang::strategy]`、`#[muslang::borrow/take/ret]`）/ B `Arc` 为 P1 可选、同函数禁止 A/C 混用、混合生命周期须拆函数、回调走 C、`MusAllocator::from_c` deallocator 配对、清理归属与 §3.2.3.1 衔接、6 项 HIR FFI 校验错误码、Rust FFI 对应关系表 | Yuanbao (AI) |
 | v0.4.2 | 2026-09-04 | **语言机制细化**：① 泛型单态化策略（§3.9，D-13）：**HIR 层单态化**（后端只见到单态后具体函数）、**递归单态化深度硬限 25 层、超限 = 语法错误**、不引入 `dyn` 类型擦除、配合按需链接 + `--gc-sections` 三层控制膨胀、3 类错误码（`E_MONO_*`）；② 生命周期标注策略（§3.10，D-14）：方案 B——函数签名默认全省略 / 推断失败给建议报错（`E_LIFETIME_AMBIGUOUS` 附建议）、**结构体·枚举不可省**、`'static` 保留、**HRTB 推迟 1.0**、`extern` FFI 边界强制显式标注；③ C++ 互操作边界定稿（§3.11，D-15）：**vtable = Itanium C++ ABI**、**异常禁止跨越 FFI 边界**（编译期拒绝 throwing 签名）、**RTTI 不支持**、**模板须 C++ 侧预实例化**（MusLang 只见到具体类型）、1.0 支持边界一览表、与 D-3/D-7/D-4 衔接 | Yuanbao (AI) |
-
 | v0.4.3 | 2026-09-05 | **工程路径定稿**：① 自举路径与 staging 策略（§3.12，D-16）：M1 部分自举（前端 MusLang 写 + 后端 Rust 写）、Stage 0 宿主语言 = Rust、先编译 std 再编译编译器、确定性输出（可重现构建）推迟至 M2、完整自举含 C99 后端推迟至 M2/M3、与 D-13 耦合说明；② 包管理器（§3.13，D-17）：M1 = Cargo 复用（`build.rs` 驱动 muslangc）+ 三阶段演进（Cargo → hypo 成熟后 → `mktplace`），`mktplace` 谐音 marketplace、参考 hypo 分发安全模型 + pets_tools 编排能力、与 hypo 各司其职；③ 软件分发（§3.14，D-18）：hypo 为独立的系统级软件分发工具，`mktplace` 管源码/依赖/构建、hypo 管产物分发/部署，分工矩阵 + `mktplace.toml` vs `hypo-manifest.toml` + M1 仅知晓不集成；④ §3.7.1 追加 D-16/D-17/D-18；⑤ §12.3 重写为跳转 + 历史方案归档；⑥ §8 M3-1~M3-3 与 §3.12 Stage 0/1/2 对齐 | Yuanbao (AI) |
-| v0.4.4 | 2026-09-05 | **运行时绑定定稿**：① `net` 事件循环（event loop / executor）**作为 `std::net` 的内部依赖自动带入**（§3.15，D-19）：用户 `use std::net` 即链接、**不提供独立的"运行时选择"**、**不引入 `#[entry]` / `block_on` 注入 API**（对标 Go，P7「网络开箱即用」）；② **MVP = 单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing = P1（FR-047）、io_uring = P1；③ executor 内部用 **`Box<dyn Future>`**（D-13 泛型单态化的**唯一例外**，避免 `Spawn<F>` 泛型爆炸）；④ **不用 `std::net` 时 event loop 完全不链接**，`<8KB` 仍可达（D-11）；⑤ 高级替换路径：不使用 `std::net`、自行基于 `std::sys` + `FfiFuture`（FR-044）实现（嵌入 C loop / 内核场景）；⑥ **澄清 P5「零运行时」=「零强制运行时」**（可选、不用不链、用了也透明，§3.15.4）；⑦ §12.7 归档 A/B/C/D 四方案对比（最终采纳 D）；⑧ §15.2 术语表新增 event loop / executor / work-stealing / 单线程 epoll；⑨ §1.1、§3.7.1（D-19）同步 | Yuanbao (AI) |
+| v0.4.4 | 2026-09-05 | **运行时绑定定稿**：① `net` 事件循环（event loop / executor）**作为 `std::net` 的内部依赖自动带入**（§3.15，D-19）：用户 `use std::net` 即链接、**不提供独立的"运行时选择"**、**不引入 `#[entry]` / `block_on` 注入 API**（对标 Go，P7「网络开箱即用」）；② **MVP = 单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing = P1（FR-047）、io_uring = P1；③ executor 内部用 **`Box<dyn Future>`**（D-13 泛型单态化的**第一个例外**，第二个为 D-20 分配器注入；避免 `Spawn<F>` 泛型爆炸）；④ **不用 `std::net` 时 event loop 完全不链接**，`<8KB` 仍可达（D-11）；⑤ 高级替换路径：不使用 `std::net`、自行基于 `std::sys` + `FfiFuture`（FR-044）实现（嵌入 C loop / 内核场景）；⑥ **澄清 P5「零运行时」=「零强制运行时」**（可选、不用不链、用了也透明，§3.15.4）；⑦ §12.7 归档 A/B/C/D 四方案对比（最终采纳 D）；⑧ §15.2 术语表新增 event loop / executor / work-stealing / 单线程 epoll；⑨ §1.1、§3.7.1（D-19）同步 | Yuanbao (AI) |
 | v0.4.5 | 2026-09-05 | **分配器模型定稿**：① 分配器采用**编译期注入默认分配器**（§3.16，D-20，方案 C）：`Box::new(x)` / `Vec::new()` / `HashMap::new()` 可用，编译器在 HIR 层自动注入默认分配器，**非 `Box<T, A>` 泛型参数、非全局可变状态**，后端只见具体调用、**不新增单态化实例**；② 默认解析顺序 = `#[default_allocator]` 注解 > 模块级 `use as default` > 全局兜底；③ **`Box` / 集合作用域退出自动 free**（编译器隐式插入 `defer`，非 RAII `Drop`，与 §3.2.3 不矛盾），用户自定义类型仍需手写 `defer`（P1）；④ **L1 core（`#![no_runtime]`）无全局兜底**，`Box::new` 报错 `E_ALLOC_NO_DEFAULT`；⑤ rt 兜底 = `GeneralPurposeAllocator`（FR-021），rt-c 兜底 = `malloc/free` via `MusAllocator::from_c`（§3.8.4，deallocator 配对）；⑥ 与 D-13 关系 = **第二个例外**（HIR 重写、不新增单态化实例，与 D-19 并列）；⑦ 否决 `Box<T, A>` 泛型参数方案（组合爆炸，冲击 25 层限制）；⑧ 错误码 `E_ALLOC_NO_DEFAULT` / `E_ALLOC_MISMATCH` / `E_DEFAULT_ALLOCATOR_UNRESOLVED` / `W_ALLOC_LEAK`；⑨ §12.8 重写为跳转 + 历史待定项收敛表；⑩ §3.7.1 追加 D-20、§1.1 待定项移除分配器、§15.2 术语表新增编译期注入 / `#[default_allocator]` / `E_ALLOC_NO_DEFAULT` / `Box<T>` 自动释放 / `Box<T,A>` 否决 | Yuanbao (AI) |
+| v0.4.6 | 2026-09-05 | **自洽性修订**：① D-12 修订——`defer` 改为**全路径执行**（含错误路径，Zig 语义），`errdefer` 仅错误路径补充执行、与 `defer` 同栈 LIFO，取消非错误返回（§3.2.3.1、§3.7.1 D-12）；② D-20 对齐——`Box` 隐式 free 在 `?` 路径同样执行（不泄漏），LIFO 执行顺序表述更正（§3.16.3）；③ FR-001 落地为 001a/001b（D-1）；④ §9 示例对齐 D-19（同步 `main`、`std::net`、Handler 三处统一）；⑤ TLS 收敛为 FR-016（P1）；⑥ D-13 例外口径统一（第一 = D-19，第二 = D-20）；⑦ §3.4.1 架构图单态化移至 HIR 层、移除宏展开阶段；⑧ §3.11.3 改为 Itanium vtable 直接调用（去 `dyn` 表述）；⑨ §3.10.1 `longest` 改为 `E_LIFETIME_AMBIGUOUS` 报错示例；⑩ §3.15.2 任务模型澄清（每连接 future + 就绪队列 256 深，10 万连接 = 空闲挂起口径）；⑪ 时间线顺延：M1 = 2026 Q4-2027 Q1、M2 = 2027 Q2-Q3、M3 = 2027 Q4-2028 Q4；⑫ D-2 传播清理（§2/§7/§6.3/§11 Zig 残留）；⑬ P5「零强制运行时」、FR-008/FR-013/FR-047、§1.1/§12 章首、§3.12.5 验收口径、§3.13.1 std 打包条目同步；⑭ 结构修复：§3.16 移至 §3.15 后、删除 §4 前孤儿表、§8/§15.2/§15.3 表格修复、citation 与 §5 示例清理、仓库 URL 统一为 GitHub | 墨染柒（Ink-dark） |
 
 ---
 
