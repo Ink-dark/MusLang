@@ -3,7 +3,7 @@
 > **项目代号**：MusLang-Qomolangma
 > **仓库**：https://gitee.com/moranqidarkseven/MusLang
 > **所属生态**：MusCat 浏览器的原生系统编程语言
-> **文档版本**：v0.4.4（网络运行时绑定）
+> **文档版本**：v0.4.5（分配器模型）
 > **创建日期**：2026-08-30
 > **更新日期**：2026-09-05
 > **作者**：墨染柒（Ink-dark）
@@ -15,8 +15,11 @@
 > - v0.4（2026-09-04）：架构决策落地（§3.7 架构决策记录、后端 C99 默认、双 runtime、std 按需链接 + 三端、二进制体积口径定稿、M1-0 决策冻结）
 > - v0.4.1（2026-09-04）：语义定稿——① `defer` 与错误传播 / 异步取消的交互规则（§3.2.3.1，D-12）；② 跨 `.so` 所有权移交协议 A+C 混合、函数级策略一致性（§3.8，D-7 定稿）；③ 配套引用补充（§15.1）
 > - v0.4.2（2026-09-04）：语言机制细化——① 泛型单态化策略：HIR 层单态化 + 递归深度硬限 25 层、超限为语法错误（§3.9，D-13）；② 生命周期标注策略：函数签名默认全省略、推断失败给建议报错、结构体/枚举不可省、HRTB 推迟 1.0、FFI 边界强制标注（§3.10，D-14）；③ C++ 互操作边界定稿：Itanium ABI、异常禁止跨越边界、RTTI 不支持、模板须 C++ 侧预实例化（§3.11，D-15）
-> - v0.4.3（2026-09-05）：工程路径定稿——① 自举路径与 staging 策略（§3.12，D-16）：M1 部分自举（前端 MusLang 写 + 后端 Rust 写）、Stage 0 宿主语言 = Rust、先编译 std 再编译编译器、确定性输出（可重现构建）推迟至 M2；② 包管理器（§3.13，D-17）：M1 = Cargo 复用（不造轮子），远期 = `mktplace`（谐音 marketplace，MusLang 源码级包管理 + 工作区编排，设计参考 hypo 分发安全模型 + pets_tools 编排能力）；③ 软件分发（§3.14，D-18）：hypo 为独立的系统级软件分发工具，`mktplace` 管"源码/依赖/构建"、hypo 管"产物分发部署"，二者各司其职；§3.7.1 决策表追加 D-16/D-17/D-18，§12.3 重写为三阶段
-> - v0.4.4（2026-09-05）：运行时绑定定稿——① `net::http` / 整个 `std::net` 子系统的事件循环（event loop / executor）**作为 `std::net` 的依赖自动带入**，用户 `use std::net` 即链接，不提供独立的"运行时选择"、不引入 `#[entry]` / `block_on` 之类的注入 API（§3.15，D-19）；② 事件循环 MVP = **单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing 为 P1（FR-047）；③ 高级替换路径：不使用 `std::net`、自行基于 syscall 实现网络层（裸机 / 嵌入式场景）；④ 澄清 P5「零运行时」语义（§1.4、§3.15.4）
+- v0.4.3（2026-09-05）：工程路径定稿——① 自举路径与 staging 策略（§3.12，D-16）；② 包管理器 `mktplace`（§3.13，D-17）；③ 软件分发与 hypo 分工（§3.14，D-18）
+- v0.4.4（2026-09-05）：运行时绑定定稿——`net` 事件循环作为 `std::net` 内部依赖自动带入、单线程 epoll MVP、无注入 API、P5 语义澄清（§3.15，D-19）
+- v0.4.5（2026-09-05）：分配器模型定稿——编译期注入默认分配器、`Box`/`Vec`/`HashMap` 同机制、作用域退出自动 free、L1 core 无兜底（§3.16，D-20）
+- v0.4.3（2026-09-05）：工程路径定稿——① 自举路径与 staging 策略（§3.12，D-16）：M1 部分自举（前端 MusLang 写 + 后端 Rust 写）、Stage 0 宿主语言 = Rust、先编译 std 再编译编译器、确定性输出（可重现构建）推迟至 M2；② 包管理器（§3.13，D-17）：M1 = Cargo 复用（不造轮子），远期 = `mktplace`（谐音 marketplace，MusLang 源码级包管理 + 工作区编排，设计参考 hypo 分发安全模型 + pets_tools 编排能力）；③ 软件分发（§3.14，D-18）：hypo 为独立的系统级软件分发工具，`mktplace` 管"源码/依赖/构建"、hypo 管"产物分发部署"，二者各司其职；§3.7.1 决策表追加 D-16/D-17/D-18，§12.3 重写为三阶段
+- v0.4.4（2026-09-05）：运行时绑定定稿——① `net::http` / 整个 `std::net` 子系统的事件循环（event loop / executor）**作为 `std::net` 的依赖自动带入**，用户 `use std::net` 即链接，不提供独立的"运行时选择"、不引入 `#[entry]` / `block_on` 之类的注入 API（§3.15，D-19）；② 事件循环 MVP = **单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing 为 P1（FR-047）；③ 高级替换路径：不使用 `std::net`、自行基于 syscall 实现网络层（裸机 / 嵌入式场景）；④ 澄清 P5「零运行时」语义（§1.4、§3.15.4）
 
 ---
 
@@ -26,7 +29,7 @@
 
 **MusLang 是一门语法以 Rust 为参照（不保证源码级兼容）、安全模型以 Zig 的类型区分取代 `unsafe` 块、内置 Go 级网络标准库、编译产物与 Zig 同级轻量的系统编程语言。** Rust、C/C++ 三方通过**共享内存布局规范与统一 HIR** 实现编译期无损互操作（无运行时 FFI 层）；标准库按子系统拆分为独立 crate、按需链接，并通过 `sys` 层支持 Linux / macOS / Windows 三端扩展（当前仅 Linux 实装）。MusLang 是 MusCat 生态全栈自研的最后一环——从语言到编译器到链接器到内核到浏览器，全栈自主可控。
 
-> **说明（v0.4.4）**：本段仅反映已冻结/已决策的架构方向，详见 §3.7「架构决策记录」（D-0~D-19）。尚未决策的事项（WASM、分配器模型、调试信息、comptime 元编程等）仍见 §12，保持「待定」不动；自举 staging、包管理器、软件分发、async 运行时绑定已于 v0.4.3 / v0.4.4 定稿（§3.12、§3.13、§3.14、§3.15）。**async 运行时（event loop / executor）不作为独立"运行时选择"暴露给用户，而是 `std::net` 的内部依赖（D-19）**。
+> **说明（v0.4.5）**：本段仅反映已冻结/已决策的架构方向，详见 §3.7「架构决策记录」（D-0~D-20）。尚未决策的事项（WASM、comptime、调试信息等）仍见 §12，保持「待定」不动；自举 staging（§3.12，D-16）、包管理器（§3.13，D-17）、软件分发（§3.14，D-18）、async 运行时绑定（§3.15，D-19）、**分配器模型（§3.16，D-20）** 均已定稿。**分配器采用编译期注入默认分配器（非 `Box<T, A>` 泛型参数），`Box` 作用域退出自动 free（D-20）**。
 
 ### 1.2 核心价值：三角融合
 
@@ -424,6 +427,7 @@ MusLang async/await  ──编译期──→  状态机 struct
 | D-17 | 包管理器 | **M1 = Cargo 复用**（不造轮子，`.mus` 作为 Rust 受限子集 + `build.rs` 驱动 `muslangc`）；**远期 = `mktplace`**（谐音 marketplace，MusLang 源码级包管理器 + 工作区编排器），设计参考 **hypo 的分发安全模型** + **pets_tools 的工作区编排能力**；`mktplace` 与 hypo **各司其职**（见 §3.13、§3.14） | 已定（v0.4.3） |
 | D-18 | 软件分发 | **hypo 为独立的系统级软件分发工具**（非构建时包管理器）；MusLang 编译产物经 hypo 做系统级分发部署，**hypo 与 `mktplace` 分工明确**：`mktplace` 管"源码怎么组织、依赖怎么拉、怎么构建"，hypo 管"编好的二进制/库怎么分发部署到目标机" | 已定（v0.4.3） |
 | D-19 | `net` 运行时绑定 | **事件循环（event loop / executor）作为 `std::net` 的内部依赖自动带入**：用户 `use std::net` 即链接，**不提供独立的"运行时选择"**、**不引入 `#[entry]` / `block_on` 注入 API**（对标 Go，P7「网络开箱即用」）；**MVP = 单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing = P1（FR-047），io_uring = P1；executor 内部用 **`Box<dyn Future>`**（D-13 泛型单态化的**唯一例外**，避免 `Spawn<F>` 泛型爆炸）；不用 `std::net` 时 event loop 完全不链接，`<8KB` 仍可达（D-11）；嵌入已有 C 事件循环 / 内核场景**不使用 `std::net`**、自行基于 `std::sys` + `FfiFuture`（FR-044）实现；并**澄清 P5「零运行时」=「零强制运行时」**（可选、不用不链、用了也透明，§3.15.4） | 已定（v0.4.4） |
+| D-20 | 分配器模型 | **编译期注入默认分配器**（方案 C）：`Box::new(x)` / `Vec::new()` / `HashMap::new()` 可用，编译器在 HIR 层自动注入当前作用域默认分配器（**非 `Box<T, A>` 泛型参数、非全局可变状态**），后端只见具体调用、不新增单态化实例（D-13 第二个例外，与 D-19 并列）；默认解析顺序 = `#[default_allocator]` 注解 > 模块级 `use as default` > 全局兜底；**`Box` / 集合作用域退出自动 free**（编译器隐式插入 `defer`，非 RAII `Drop`，与 §3.2.3 不矛盾）；**L1 core（`#![no_runtime]`）无全局兜底**，`Box::new` 报错 `E_ALLOC_NO_DEFAULT`；rt 兜底 = `GeneralPurposeAllocator`（FR-021），rt-c 兜底 = `malloc/free` via `MusAllocator::from_c`（§3.8.4，deallocator 配对） | 已定（v0.4.5） |
 
 #### 3.7.2 互操作：编译期机制（D-3）
 
@@ -1560,6 +1564,157 @@ fn main() {
 
 ---
 
+### 3.16 分配器模型（D-20，v0.4.5）
+
+> **问题**：PRD 已埋下两条互相拉扯的要求——**P4「分配器作为参数、显式优于隐式」**（FR-008，Zig 灵魂）+ **P8「Hello World 只需 5 行」**（FR-001 可用性，Rust 之壳）。同时 `alloc` 包 = `GeneralPurposeAllocator`（FR-021，P0）、`MusAllocator::from_c` 桥接 deallocator 配对（§3.8.4，D-7）均已定，但 **`Box::new(42)` 到底怎么拿到分配器、`Box` 怎么释放**从未写明。本小节定稿分配器注入机制与 `Box` 生命周期，**规则为编译期重写，零运行时开销**。
+
+#### 3.16.1 核心规则（v0.4.5 定稿：方案 C——编译期注入默认分配器）
+
+**默认写法 = `Box::new(42)`，编译器在 HIR 层自动注入当前作用域的"默认分配器"**，无需用户传参、无需全局变量、无需泛型参数：
+
+```rust
+// 场景 1：Hello World（P8 满足，5 行）
+fn main() {
+    let v = Box::new(42);   // ← 用编译期注入的默认分配器，用户无感
+    // ... 使用 v
+}   // ← 作用域退出时编译器隐式插入 `box.free()`（见 §3.16.3）
+
+// 场景 2：内核 / 自定义分配器（P4 满足，显式）
+fn init_page_table(alloc: &KernelBumpAlloc) {
+    #[default_allocator(alloc)]
+    fn setup() {
+        let entry = Box::new(PageEntry::new());  // ← 自动用 KernelBumpAlloc
+        // ...
+    }
+    setup();
+}
+
+// 场景 3：单点显式覆盖（绕过默认，FR-008 的 Zig 灵魂）
+fn main() {
+    let custom = MyAlloc::new();
+    let v = Box::new_in(42, &custom);  // ← 显式指定，不依赖作用域默认
+}
+```
+
+**默认分配器的三层解析顺序**（编译期、HIR 构建期确定，无运行时查找）：
+
+| 优先级 | 来源 | 作用域 | 说明 |
+|---|---|---|---|
+| 1 | `#[default_allocator(alloc)]` 函数注解 | 该函数内所有 `Box::new` / `Vec::new` | 最高优先，显式绑定 |
+| 2 | `use std::alloc::XxxAllocator as default;`（模块级） | 该模块 | 整个 crate / 子系统统一设定 |
+| 3 | **全局兜底**（`muslang-rt` / `muslang-rt-c` 提供） | 未标注处 | 见 §3.16.4 |
+
+> **关键点**：默认分配器是**编译期确定的静态值**（一个 `&'static MusAllocator` 或函数参数引用），**不是 TLS、不是全局可变状态、不是 `alloc::Global` 动态分发**——生成代码与手写 `Box::new_in(x, &alloc)` **比特一致**，零额外开销。
+
+#### 3.16.2 为什么不用「`Box<T, A>` 泛型参数」方案
+
+**方案 D（`Box<T, A>` + 默认类型参数）看似更符合"零成本"，实际会与 D-13 直接冲突，故不采用：**
+
+| 考量 | `Box<T, A>` 泛型方案 | **本方案（编译期注入）** |
+|---|---|---|
+| 单态化组合 | `Box<T, A>` × `Vec<T, A>` × `HashMap<K,V,A>` → **分配器变化 × 类型变化 = 组合爆炸**，直接冲击 D-13「25 层 + `--gc-sections`」 | **不产生新类型参数**，HIR 重写后后端只见具体调用，**不增加单态化实例** |
+| L1 `<8KB` | 每个新分配器组合生成一个 `Vec::push` 副本，膨胀难控 | 仅实际用到的实例进入二进制，D-9 按需链接自然收敛 |
+| 内核可用性 | `Box<T, A>` 仍要求 A 在类型里流动，内核多分配器场景冗长 | `#[default_allocator]` 注解一处、覆盖整个子系统 |
+| 用户心智 | "Hello World 也要懂分配器泛型" | P8 满足：`Box::new(42)` 即可 |
+
+**结论**：编译期注入是 D-13「不引入类型擦除」原则的**第二个明确例外**（第一个是 D-19 executor 的 `Box<dyn Future>`），但**本质是单态化前的重写**，不背叛零成本——见 §3.16.6 与 D-13 的衔接说明。
+
+#### 3.16.3 `Box` 的释放方式（选项 c：作用域退出自动 free，底层仍是 `defer`）
+
+> **决定**：`Box`（以及所有拥有堆内存的安全抽象）在**作用域退出时自动释放**，无需用户手写 `defer box.free()`。底层实现机制 = 编译器隐式插入 `defer`，**与 §3.2.3「`defer` 替代 RAII」不矛盾**——只是把 `defer` 隐藏在语言内置类型里。
+
+```rust
+fn process() {
+    let v = Box::new(42);
+    //  ^ 编译器内部等价于：let v = Box::new_in(42, __default_alloc);
+    //                        defer v.free();   ← 隐式插入（Drop 不存在，用 defer）
+
+    if some_cond {
+        return;   // ← defer 触发 free（正常路径，走 §3.2.3.1 规则一）
+    }
+    // ...
+}   // ← 自然退出也触发 defer free
+```
+
+- **为何不直接引入 `Drop` trait**：`Box` 的释放是**语言内置、不可用户自定义**的——只有 `Box`/`Vec`/`HashMap` 等标准库拥有类型享有此隐式 `defer`，用户自定义类型**仍需手写 `defer`**（保持 P1「零隐藏控制流」：用户代码的清理必须可见）；
+- **与 `defer`/`errdefer` 的执行顺序**：隐式 `defer box.free()` **排在用户显式 `defer` 之前**（LIFO，先注册先执行），保证用户 `defer` 可安全访问 `Box` 内容；
+- **跨 `.await` 的 `Box`**：遵循 §3.2.3.1 规则三——`Box` 是同步资源，状态机丢弃时其隐式 `defer free` 照常执行；
+- **`?` 提前返回**：走规则二，仅 `errdefer` 链 + 隐式 `defer free` 均执行（资源不泄漏）；
+- **显式放弃所有权**：`Box::into_raw` / `Box::leak` 仍可用（对应 D-7 移交语义，见 §3.8）。
+
+> **P8 与 P1 的平衡**：`Box` 自动释放是"壳"的体验（Rust 用户零学习），但**底层机制是 `defer`、且 `muslangc --emit audit` 会列出所有隐式 free 调用点**——审计粒度仍在，不牺牲 P3「类型即安全边界」。
+
+#### 3.16.4 全局兜底分配器（与 D-8 双 runtime 对齐）
+
+| runtime | 默认兜底分配器 | 理由 |
+|---|---|---|
+| **`muslang-rt`**（原生，L2 hosted） | `GeneralPurposeAllocator`（FR-021，调试模式带泄漏检测） | 零 libc 依赖，自举链完整 |
+| **`muslang-rt-c`**（C 兼容，L2/L3） | `libc::malloc/free`（通过 `MusAllocator::from_c` 桥接，见 §3.8.4） | deallocator 配对一致，**C 侧可直接 `free` MusLang 的 `Box`**（D-7） |
+
+- **L1 core（`#![no_std]` + `#![no_runtime]`）**：**不存在全局兜底**——`Box::new(42)` 在 L1 中**编译报错**（`E_ALLOC_NO_DEFAULT`），强制用户通过 `#[default_allocator]` 或 `new_in` 显式提供（bump / pool / 静态分区）；这与 D-11「L1 core 无 libc」一致，也避免了"内核里悄悄 malloc"的隐式控制流（P1）；
+- **rt-c 对接**：`GeneralPurposeAllocator` 在 rt-c 下**可配置为**用 `malloc/free` 作为后端（FR-021），故 MusLang 分配的对象 C 侧可直接 `free`——**deallocator 一致，无 double-free**，与 §3.8.4 闭环。
+
+#### 3.16.5 集合类型（Vec / HashMap）的分配器
+
+**与 `Box` 同机制——编译期注入，同一套 `#[default_allocator]` 注解覆盖：**
+
+```rust
+fn main() {
+    let mut v = Vec::new();        // ← 用默认分配器（与 Box 同款注入）
+    v.push(1);
+
+    let mut map = HashMap::new();   // ← 同上
+    map.insert("key", 42);
+}   // ← 作用域退出，Vec / HashMap 内部 buffer 隐式 defer free
+```
+
+- `Vec::new()` / `Vec::with_capacity_in(cap, &alloc)`、`HashMap::new()` / `HashMap::with_allocator(&alloc)`——**双 API 与 Rust 标准库一致**；
+- 集合的 `clone` / `extend` **沿用目标集合的分配器**（不跨分配器拷贝，避免配对混乱）；
+- **不做**"分配器感知的 trait object"（`Box<dyn Trait, A>` 式）——与 §3.16.2 一致，避免单态化爆炸。
+
+#### 3.16.6 与 D-13（泛型单态化）的衔接
+
+编译期注入本质是 **HIR 重写**：`Box::new(42)` → `Box::new_in(42, __default_allocator)`，发生在**单态化之前**，因此：
+
+1. **不新增单态化实例**——后端只见 `Box::new_in(i32, &MusAllocator)` 这类具体调用，**不违反 D-13 的 25 层限制**；
+2. **注入的 `__default_allocator` 是单态化的"外部引用"**，指向一个确定的 `MusAllocator` 实例，**不**在类型层面参数化；
+3. **这是 D-13「不引入类型擦除」的第二个例外**（第一个是 D-19 的 `Box<dyn Future>`），两者均属**运行时组件**（executor / allocator），非语言抽象层；安全抽象层（`Box<T>` 本身的类型检查）**仍全程单态化、无虚调用**；
+4. **膨胀控制**：`__default_allocator` 在不同编译单元若指向同一实例（模块级 / 全局兜底场景），链接期自然合并；若各编译单元各有分配器（内核场景），`--gc-sections`（D-9 / D-13）剔除未引用实例。
+
+#### 3.16.7 决策表
+
+| 决策点 | 结论 | 状态 |
+|---|---|---|
+| 默认写法 | `Box::new(x)` 可用，**编译期注入**默认分配器 | ✅ 已定 |
+| 注入机制 | HIR 重写（非泛型参数、非全局可变状态） | ✅ 已定 |
+| 默认分配器解析顺序 | `#[default_allocator]` 注解 > 模块级 `use as default` > 全局兜底 | ✅ 已定 |
+| `Box` 释放 | 作用域退出**自动 free**（编译器隐式插入 `defer`，非 RAII `Drop`） | ✅ 已定 |
+| 显式覆盖 | `Box::new_in(x, &custom)`（双 API：`new` / `with_allocator`） | ✅ 已定 |
+| L1 core 兜底 | **不存在**，`Box::new` 报错 `E_ALLOC_NO_DEFAULT` | ✅ 已定 |
+| rt 兜底 | `GeneralPurposeAllocator`（FR-021） | ✅ 已定 |
+| rt-c 兜底 | `malloc/free` via `MusAllocator::from_c`（§3.8.4） | ✅ 已定 |
+| 集合类型 | `Vec` / `HashMap` 同机制 | ✅ 已定 |
+| 与 D-13 关系 | **第二个例外**（HIR 重写、不新增单态化实例） | ✅ 已定 |
+| `Box<T, A>` 泛型参数 | ❌ **不采用**（组合爆炸，冲击 25 层限制） | ❌ 否决 |
+
+#### 3.16.8 错误码（属 D-4 CI 门禁）
+
+| 错误 | 触发条件 |
+|---|---|
+| `E_ALLOC_NO_DEFAULT` | L1 core（`#![no_runtime]`）中 `Box::new` / `Vec::new` 无可用默认分配器 |
+| `E_ALLOC_MISMATCH` | 跨分配器拷贝 / 释放（对象 A 分配、B 释放且未配对 `from_c`） |
+| `E_DEFAULT_ALLOCATOR_UNRESOLVED` | `#[default_allocator]` 注解引用的分配器不可见 / 生命周期不足 |
+| `W_ALLOC_LEAK`（可升级为错误） | `GeneralPurposeAllocator` 调试模式检测到泄漏（对应 FR-021） |
+
+#### 3.16.9 实现期待办
+
+1. 实测默认注入 vs 显式 `new_in` 的二进制体积差异（预期 = 0，因 HIR 重写等价）；
+2. 内核 bump / pool 分配器的标准库实现（L1 core 场景，D-11 协同）；
+3. `GeneralPurposeAllocator` 泄漏检测的 CI 集成（FR-021 + `W_ALLOC_LEAK`）；
+4. 与 D-16 自举链协同：`std` 自身（含 `alloc` crate）须用**显式** `#[default_allocator]`，避免 Stage 0 自举期"全局兜底尚未编译完成"的鸡生蛋问题。
+
+---
+
 ## 12. 开放问题分析框架
 
 > **说明**：以下开放问题保持"待定"状态，但每个问题均已补充 **分析维度、评估标准、决策时间节点**，确保后续决策有据可依。
@@ -1662,9 +1817,19 @@ fn main() {
 - P5「零运行时」澄清为 **「零强制运行时」**（§3.15.4）；
 - 高级替换路径：**不使用 `std::net`**，自行基于 `std::sys` + `FfiFuture` 实现。
 
-### 12.8 分配器模型（仍待定）
+### 12.8 分配器模型（v0.4.5 已定，见 §3.16）
 
-> **状态**：v0.4.4 未决策，保持待定。已知锚点：`alloc` 包 = `GeneralPurposeAllocator`（FR-021，P0）、分配器显式传递（FR-008，Zig 风格，P4）、`MusAllocator::from_c` 桥接 deallocator 配对（§3.8.4，D-7）。核心待定项：**零成本抽象边界**（allocator 参数是否单态化、与 D-13 25 层限制的交互）、**L1 core 无 libc 时的默认 allocator**（bump / pool / 静态分区）、**`no_std` 场景的 allocator 注入方式**。
+> **v0.4.5 状态**：本节已于 v0.4.5 **定稿为 D-20**（编译期注入默认分配器），详见 §3.16。以下仅保留历史待定项供追溯，**新设计以 §3.16 为准**。
+
+**历史待定项（均已收敛为 D-20 决策）**：
+
+| 原待定项 | D-20 定稿 |
+|---|---|
+| **零成本抽象边界**（allocator 参数是否单态化、与 D-13 25 层限制的交互） | **采用 HIR 重写（编译期注入），不参数化、不新增单态化实例**——D-13「不引入类型擦除」的第二个例外（与 D-19 并列） |
+| **L1 core 无 libc 时的默认 allocator**（bump / pool / 静态分区） | **L1 core 无全局兜底**，`Box::new` 报错 `E_ALLOC_NO_DEFAULT`，须 `#[default_allocator]` / `new_in` 显式提供 |
+| **`no_std` 场景的 allocator 注入方式** | `#[default_allocator(alloc)]` 注解 > 模块级 `use as default` > 全局兜底三层解析 |
+
+**已确认的锚点（未变）**：`alloc` 包 = `GeneralPurposeAllocator`（FR-021，P0）、分配器显式传递（FR-008，Zig 风格，P4，体现在 `new_in` / `#[default_allocator]`）、`MusAllocator::from_c` 桥接 deallocator 配对（§3.8.4，D-7，rt-c 兜底 = `malloc/free`）。
 
 ---
 
@@ -1779,6 +1944,11 @@ docs/
 | work-stealing | P1 调度策略（FR-047）：多线程下任务跨 worker 窃取；MVP 不实现 |
 | `Box<dyn Future>` | executor 内部的任务存储方式（D-19）；D-13「不引入类型擦除」规则的**唯一例外**，因 executor 属运行时 |
 | P5「零强制运行时」 | D-19 澄清后的 P5 准确表述：运行时可选、不用不链、用了也透明（非"二进制里完全没有运行时组件"） |
+| 编译期注入默认分配器 | D-20 的分配器机制：`Box::new(x)` 在 HIR 层重写为 `Box::new_in(x, __default_allocator)`，不产生泛型参数、不新增单态化实例 |
+| `#[default_allocator(alloc)]` | D-20 的函数级注解：将某函数内所有 `Box::new`/`Vec::new` 绑定到指定分配器；优先级高于模块级与全局兜底 |
+| `E_ALLOC_NO_DEFAULT` | D-20 错误码：L1 core（`#![no_runtime]`）中无默认分配器却使用 `Box::new`/`Vec::new` |
+| `Box<T>` 自动释放 | D-20：`Box`/`Vec`/`HashMap` 等拥有堆内存的安全抽象在作用域退出时自动 free，底层 = 编译器隐式插入 `defer`（非 RAII `Drop`） |
+| `Box<T, A>` 否决 | D-20：不采用 `Box<T, A>` 泛型参数方案（组合爆炸，冲击 D-13 25 层限制），改用编译期注入 |
 
 ### 15.3 变更记录
 
@@ -1793,6 +1963,7 @@ docs/
 
 | v0.4.3 | 2026-09-05 | **工程路径定稿**：① 自举路径与 staging 策略（§3.12，D-16）：M1 部分自举（前端 MusLang 写 + 后端 Rust 写）、Stage 0 宿主语言 = Rust、先编译 std 再编译编译器、确定性输出（可重现构建）推迟至 M2、完整自举含 C99 后端推迟至 M2/M3、与 D-13 耦合说明；② 包管理器（§3.13，D-17）：M1 = Cargo 复用（`build.rs` 驱动 muslangc）+ 三阶段演进（Cargo → hypo 成熟后 → `mktplace`），`mktplace` 谐音 marketplace、参考 hypo 分发安全模型 + pets_tools 编排能力、与 hypo 各司其职；③ 软件分发（§3.14，D-18）：hypo 为独立的系统级软件分发工具，`mktplace` 管源码/依赖/构建、hypo 管产物分发/部署，分工矩阵 + `mktplace.toml` vs `hypo-manifest.toml` + M1 仅知晓不集成；④ §3.7.1 追加 D-16/D-17/D-18；⑤ §12.3 重写为跳转 + 历史方案归档；⑥ §8 M3-1~M3-3 与 §3.12 Stage 0/1/2 对齐 | Yuanbao (AI) |
 | v0.4.4 | 2026-09-05 | **运行时绑定定稿**：① `net` 事件循环（event loop / executor）**作为 `std::net` 的内部依赖自动带入**（§3.15，D-19）：用户 `use std::net` 即链接、**不提供独立的"运行时选择"**、**不引入 `#[entry]` / `block_on` 注入 API**（对标 Go，P7「网络开箱即用」）；② **MVP = 单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing = P1（FR-047）、io_uring = P1；③ executor 内部用 **`Box<dyn Future>`**（D-13 泛型单态化的**唯一例外**，避免 `Spawn<F>` 泛型爆炸）；④ **不用 `std::net` 时 event loop 完全不链接**，`<8KB` 仍可达（D-11）；⑤ 高级替换路径：不使用 `std::net`、自行基于 `std::sys` + `FfiFuture`（FR-044）实现（嵌入 C loop / 内核场景）；⑥ **澄清 P5「零运行时」=「零强制运行时」**（可选、不用不链、用了也透明，§3.15.4）；⑦ §12.7 归档 A/B/C/D 四方案对比（最终采纳 D）；⑧ §15.2 术语表新增 event loop / executor / work-stealing / 单线程 epoll；⑨ §1.1、§3.7.1（D-19）同步 | Yuanbao (AI) |
+| v0.4.5 | 2026-09-05 | **分配器模型定稿**：① 分配器采用**编译期注入默认分配器**（§3.16，D-20，方案 C）：`Box::new(x)` / `Vec::new()` / `HashMap::new()` 可用，编译器在 HIR 层自动注入默认分配器，**非 `Box<T, A>` 泛型参数、非全局可变状态**，后端只见具体调用、**不新增单态化实例**；② 默认解析顺序 = `#[default_allocator]` 注解 > 模块级 `use as default` > 全局兜底；③ **`Box` / 集合作用域退出自动 free**（编译器隐式插入 `defer`，非 RAII `Drop`，与 §3.2.3 不矛盾），用户自定义类型仍需手写 `defer`（P1）；④ **L1 core（`#![no_runtime]`）无全局兜底**，`Box::new` 报错 `E_ALLOC_NO_DEFAULT`；⑤ rt 兜底 = `GeneralPurposeAllocator`（FR-021），rt-c 兜底 = `malloc/free` via `MusAllocator::from_c`（§3.8.4，deallocator 配对）；⑥ 与 D-13 关系 = **第二个例外**（HIR 重写、不新增单态化实例，与 D-19 并列）；⑦ 否决 `Box<T, A>` 泛型参数方案（组合爆炸，冲击 25 层限制）；⑧ 错误码 `E_ALLOC_NO_DEFAULT` / `E_ALLOC_MISMATCH` / `E_DEFAULT_ALLOCATOR_UNRESOLVED` / `W_ALLOC_LEAK`；⑨ §12.8 重写为跳转 + 历史待定项收敛表；⑩ §3.7.1 追加 D-20、§1.1 待定项移除分配器、§15.2 术语表新增编译期注入 / `#[default_allocator]` / `E_ALLOC_NO_DEFAULT` / `Box<T>` 自动释放 / `Box<T,A>` 否决 | Yuanbao (AI) |
 
 ---
 
