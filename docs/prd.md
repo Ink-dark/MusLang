@@ -3,7 +3,7 @@
 > **项目代号**：MusLang-Qomolangma
 > **仓库**：https://gitee.com/moranqidarkseven/MusLang
 > **所属生态**：MusCat 浏览器的原生系统编程语言
-> **文档版本**：v0.4.3（自举路径 + 包管理与软件分发）
+> **文档版本**：v0.4.4（网络运行时绑定）
 > **创建日期**：2026-08-30
 > **更新日期**：2026-09-05
 > **作者**：墨染柒（Ink-dark）
@@ -16,6 +16,7 @@
 > - v0.4.1（2026-09-04）：语义定稿——① `defer` 与错误传播 / 异步取消的交互规则（§3.2.3.1，D-12）；② 跨 `.so` 所有权移交协议 A+C 混合、函数级策略一致性（§3.8，D-7 定稿）；③ 配套引用补充（§15.1）
 > - v0.4.2（2026-09-04）：语言机制细化——① 泛型单态化策略：HIR 层单态化 + 递归深度硬限 25 层、超限为语法错误（§3.9，D-13）；② 生命周期标注策略：函数签名默认全省略、推断失败给建议报错、结构体/枚举不可省、HRTB 推迟 1.0、FFI 边界强制标注（§3.10，D-14）；③ C++ 互操作边界定稿：Itanium ABI、异常禁止跨越边界、RTTI 不支持、模板须 C++ 侧预实例化（§3.11，D-15）
 - v0.4.3（2026-09-05）：工程路径定稿——① 自举路径与 staging 策略（§3.12，D-16）：M1 部分自举（前端 MusLang 写 + 后端 Rust 写）、Stage 0 宿主语言 = Rust、先编译 std 再编译编译器、确定性输出（可重现构建）推迟至 M2；② 包管理器（§3.13，D-17）：M1 = Cargo 复用（不造轮子），远期 = `mktplace`（谐音 marketplace，MusLang 源码级包管理 + 工作区编排，设计参考 hypo 分发安全模型 + pets_tools 编排能力）；③ 软件分发（§3.14，D-18）：hypo 为独立的系统级软件分发工具，`mktplace` 管"源码/依赖/构建"、hypo 管"产物分发部署"，二者各司其职；§3.7.1 决策表追加 D-16/D-17/D-18，§12.3 重写为三阶段
+- v0.4.4（2026-09-05）：运行时绑定定稿——① `net::http` / 整个 `std::net` 子系统的事件循环（event loop / executor）**作为 `std::net` 的依赖自动带入**，用户 `use std::net` 即链接，不提供独立的"运行时选择"、不引入 `#[entry]` / `block_on` 之类的注入 API（§3.15，D-19）；② 事件循环 MVP = **单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing 为 P1（FR-047）；③ 高级替换路径：不使用 `std::net`、自行基于 syscall 实现网络层（裸机 / 嵌入式场景）；④ 澄清 P5「零运行时」语义（§1.4、§3.15.4）
 
 ---
 
@@ -25,7 +26,7 @@
 
 **MusLang 是一门语法以 Rust 为参照（不保证源码级兼容）、安全模型以 Zig 的类型区分取代 `unsafe` 块、内置 Go 级网络标准库、编译产物与 Zig 同级轻量的系统编程语言。** Rust、C/C++ 三方通过**共享内存布局规范与统一 HIR** 实现编译期无损互操作（无运行时 FFI 层）；标准库按子系统拆分为独立 crate、按需链接，并通过 `sys` 层支持 Linux / macOS / Windows 三端扩展（当前仅 Linux 实装）。MusLang 是 MusCat 生态全栈自研的最后一环——从语言到编译器到链接器到内核到浏览器，全栈自主可控。
 
-> **说明（v0.4.3）**：本段仅反映已冻结/已决策的架构方向，详见 §3.7「架构决策记录」（D-0~D-18）。尚未决策的事项（WASM、分配器模型、async 运行时绑定、调试信息、comptime 元编程等）仍见 §12，保持「待定」不动；自举 staging、包管理器已于 v0.4.3 定稿（§3.12、§3.13）。
+> **说明（v0.4.4）**：本段仅反映已冻结/已决策的架构方向，详见 §3.7「架构决策记录」（D-0~D-19）。尚未决策的事项（WASM、分配器模型、调试信息、comptime 元编程等）仍见 §12，保持「待定」不动；自举 staging、包管理器、软件分发、async 运行时绑定已于 v0.4.3 / v0.4.4 定稿（§3.12、§3.13、§3.14、§3.15）。**async 运行时（event loop / executor）不作为独立"运行时选择"暴露给用户，而是 `std::net` 的内部依赖（D-19）**。
 
 ### 1.2 核心价值：三角融合
 
@@ -422,6 +423,7 @@ MusLang async/await  ──编译期──→  状态机 struct
 | D-16 | 自举路径（staging） | **M1 部分自举**：编译器前端（lexer/parser/AST/类型检查）用 MusLang 编写，后端（C99 代码生成 / LLVM 桥接）仍用 Rust 编写；**Stage 0 宿主语言 = Rust**；构建顺序**先编译 std 再编译编译器**（std 依赖 HIR 单态化 D-13 完整支持）；**确定性输出（可重现构建）推迟至 M2**；完整自举（含 C99 后端）推迟至 M2/M3 | 已定（v0.4.3） |
 | D-17 | 包管理器 | **M1 = Cargo 复用**（不造轮子，`.mus` 作为 Rust 受限子集 + `build.rs` 驱动 `muslangc`）；**远期 = `mktplace`**（谐音 marketplace，MusLang 源码级包管理器 + 工作区编排器），设计参考 **hypo 的分发安全模型** + **pets_tools 的工作区编排能力**；`mktplace` 与 hypo **各司其职**（见 §3.13、§3.14） | 已定（v0.4.3） |
 | D-18 | 软件分发 | **hypo 为独立的系统级软件分发工具**（非构建时包管理器）；MusLang 编译产物经 hypo 做系统级分发部署，**hypo 与 `mktplace` 分工明确**：`mktplace` 管"源码怎么组织、依赖怎么拉、怎么构建"，hypo 管"编好的二进制/库怎么分发部署到目标机" | 已定（v0.4.3） |
+| D-19 | `net` 运行时绑定 | **事件循环（event loop / executor）作为 `std::net` 的内部依赖自动带入**：用户 `use std::net` 即链接，**不提供独立的"运行时选择"**、**不引入 `#[entry]` / `block_on` 注入 API**（对标 Go，P7「网络开箱即用」）；**MVP = 单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing = P1（FR-047），io_uring = P1；executor 内部用 **`Box<dyn Future>`**（D-13 泛型单态化的**唯一例外**，避免 `Spawn<F>` 泛型爆炸）；不用 `std::net` 时 event loop 完全不链接，`<8KB` 仍可达（D-11）；嵌入已有 C 事件循环 / 内核场景**不使用 `std::net`**、自行基于 `std::sys` + `FfiFuture`（FR-044）实现；并**澄清 P5「零运行时」=「零强制运行时」**（可选、不用不链、用了也透明，§3.15.4） | 已定（v0.4.4） |
 
 #### 3.7.2 互操作：编译期机制（D-3）
 
@@ -1032,6 +1034,178 @@ signature: SM2:xxxx...
 
 ---
 
+### 3.15 `net` 事件循环：作为 `std::net` 的依赖自动带入（D-19，v0.4.4）
+
+> **问题**：§3.6 已定 async 语法（Rust 风格、编译期状态机），§3.3.1 已定 `net::http` API 形状（`Handler::handle` 为 `async`、`server.listen().await`）。但 **`listen().await` 由谁驱动、事件循环从哪来** 一直未回答。本小节定稿 **事件循环（event loop / executor）的归属与绑定方式**。**规则为编译期 / 链接期机制，无运行时选项开销（无 vtable 分支、无 feature 检测）**。
+
+#### 3.15.1 核心决策：事件循环是 `std::net` 的依赖，不是用户的选择
+
+**一句话**：事件循环（epoll / kqueue 封装 + 任务调度）是 `std::net` 的**内部实现依赖**——它随 `std::net` crate **自动链接进来**，**用户不需要、也无法选择运行时**。
+
+这与 Rust 生态（Tokio / async-std / smol 用户自选 executor + `#[tokio::main]`）**刻意不同**：MusLang 承诺 P7「网络开箱即用」（对标 Go `net/http`），因此标准库**自带一个够用的默认实现**，不把"选运行时"暴露成用户的第一道门槛。
+
+```
+用户源码                 链接图（自动，用户不可见）
+─────────                ─────────────────────────────────────────
+use std::net::http;       main.mus
+                            │
+async fn handle(...) { … }   ├── std::net::http   (FR-015，用户显式 use)
+                            │       │
+fn main() {                 │       ├── std::net::tcp     (FR-014)
+    let s = Server::new();  │       │       │
+    s.handle(handle);       │       │       └── std::async::event_loop  ← 自动带入
+    s.listen();  // block   │       │               │
+}                           │       │               └── libc::epoll_* / io_uring
+                            │       └── std::io (FR-024)
+                            └── muslang-rt-c ──► libc
+
+未 use std::net 的程序（裸机 / 内核 / CLI）：std::net 整块被 --gc-sections 剔除，
+event_loop 完全不存在于最终二进制中。
+```
+
+**四条硬性结论**：
+
+1. **不提供独立的"运行时选择"**——没有 `--runtime=tokio`、没有 `muslang-rt-async` 独立 crate、不在 std 中预留 `Executor` trait 让用户 impl。**标准库就是唯一实现**，要改自己改源码（见 §3.15.3 替换路径）。
+
+2. **不引入注入 API**——没有 `#[entry]` / `#[async_main]` / `Runtime::new().block_on(main())` / `muslang::runtime::block_on`。`fn main()` 就是同步入口，`async fn` 由 `std::net` 内部的 event loop 在 `listen()` / `connect()` / `accept()` 等**阻塞点**驱动。这与 Go 的 `go func()` 无需 main 注入 runtime 一致。
+
+3. **依赖是显式的、实现是隐式的**（与 P4「显式优于隐式」不冲突）：
+   - **显式**：`use std::net::http`（用户清楚地声明"我要用网络"）；
+   - **隐式**：event loop 是 `net` 的**底层实现细节**，如同 `Vec` 内部用 `alloc`、``println!`` 内部调 `write` syscall——**没有人觉得 `alloc` 应该让用户手动初始化**。
+
+4. **不用 `net` 的人完全不关心**——`#![no_std]` 内核 / 裸机程序不 `use std::net`，event loop 不被链接，`--gc-sections` 整块剔除，**L1 `<8KB` 目标（D-11）不受影响**（见 §3.15.4）。
+
+#### 3.15.2 事件循环规格（MVP）
+
+| 属性 | MVP 规格（v0.4.4 定稿） | 远期 |
+|---|---|---|
+| 事件驱动 | **单线程 epoll**（Linux）/ kqueue（macOS，`sys` 层分发，D-9） | io_uring 可选（P1） |
+| 线程模型 | **一个 event loop 处理全部连接**（goroutine-per-connection 的**协程**跑在单 loop 上，非"一个连接一个 OS 线程"） | 多线程 work-stealing（FR-047，P1） |
+| 任务池 | **固定大小**（默认 256 任务槽），**无动态扩容** | 可配置 `with_config(Threads(n))` |
+| 锁 | 无（单线程），避免原子 / Mutex 开销 | 多线程时按 connection 分片 |
+| 体积 | < 20KB（不含 TLS / HTTP 解析） | — |
+| 剔除方式 | `no_std` 或不 `use std::net` → 不链接 | 同 |
+
+**选择单线程 MVP 的理由**：
+- **体积小**：不需要锁、不需要 work-stealing 任务队列、不需要线程池——符合 L1 精神；
+- **内核 / 嵌入式场景够用**：单 loop + 非阻塞 I/O 即可支撑 10 万连接（瓶颈在 fd 数量与内存，不在线程数）；
+- **多线程可后续追加而不破坏 API**：`Server::listen()` 签名不变，仅内部从单 loop 扩为多 loop，`Handler` 代码零改动（P1 再做，不急 M1）。
+
+#### 3.15.3 用户代码示例（Go 级体验，零 boilerplate）
+
+```rust
+// ✅ 完整可用的 HTTP 服务——无任何运行时注入、无 block_on、无 #[entry]
+use std::net::http;
+
+struct Server { addr: String }
+impl Server {
+    fn new(addr: &str) -> Self { Server { addr: addr.to_string() } }
+    fn handle(&self, pattern: &str, h: impl http::Handler) { /* 注册路由 */ }
+    fn listen(&self) { /* 内部：起 event loop、accept、spawn 协程、block 至此 */ }
+}
+
+trait Handler {
+    async fn handle(&self, req: &http::Request, res: &mut http::Response)
+        -> Result<(), http::HttpError>;
+}
+
+fn main() {
+    let server = Server::new("0.0.0.0:8080");
+    server.handle("GET /", |req| async {
+        http::Response::ok("Hello, MusLang!")
+    });
+    server.listen();  // ← 阻塞：event loop 在此启动并驱动所有 async Handler
+}
+```
+
+**对照 Rust（Tokio）**——MusLang 省掉的正是这几行：
+
+```rust
+// Rust 要求用户写的 boilerplate（MusLang 不需要）
+#[tokio::main]          // ← MusLang 无此宏
+async fn main() {        // ← MusLang 的 main 是同步的
+    let listener = TcpListener::bind("0.0.0.0:8080").await?;
+    // ...
+}
+```
+
+#### 3.15.4 与 P5「零运行时」的语义澄清（重要）
+
+**P5 不是"二进制里没有任何运行时组件"，而是"运行时可选、不用不链、用了也透明"。** 本次（D-19）明确该承诺的口径：
+
+| 场景 | 是否含 event loop | 是否满足 P5 | 说明 |
+|---|---|---|---|
+| `Hello, World`（无 `use std::net`） | ❌ 无 | ✅ | `--gc-sections` 剔除，`<8KB` 可达（D-11） |
+| `#![no_std]` 内核 / 裸机 | ❌ 无 | ✅ | 用户自行 syscall，不依赖 `std::net` |
+| HTTP 服务（`use std::net`） | ✅ 有 | ✅ | event loop 是 `std::net` 内部依赖，**对用户不可见、不可配置、不污染全局**——与 `printf` 内部含 `write` syscall 封装同理 |
+| 自定义事件循环（嵌入已有 C loop） | 可选 | ✅ | 见 §3.15.5 替换路径 |
+
+> **结论**：P5 的准确表述应为 **"零**强制**运行时"**——运行时组件**只在被显式 `use` 的标准库子系统（`net`、可能的 `gui` 等）引入时才存在，且对用户透明。**这与 Zig 的"标准库可拆分、不用就不付代价"精神一致**，也与 D-9「按需链接」完全自洽。
+
+#### 3.15.5 替换路径（高级 / 嵌入式场景）
+
+标准库的实现是唯一默认，**但源码可改**——这是"不提供选择"与"完全锁死"之间的关键分野：
+
+| 需求 | 做法 | 说明 |
+|---|---|---|
+| **嵌入到已有的 C 事件循环**（libuv、libevent、自研 epoll） | **不使用 `std::net`**，自行基于 `std::sys`（`std::os` syscall 封装）+ `std::async::Future` 实现网络层 | 用户代码完全控制 accept / poll / spawn；`FfiFuture`（FR-044，`repr(C)`）用于在 C loop 中驱动 MusLang future，与 D-8 双 runtime 衔接 |
+| **内核 / 裸机网络栈** | `#![no_std]` + 自有网络实现（MusKitty Layer 5，见 §7） | 不走 `std::net`，event loop 概念由内核调度器承担 |
+| **想要多线程 / io_uring / 自定义调度策略** | **Fork std 的 `net` crate 修改**，或等 P1（FR-047 work-stealing） | MVP 单线程是工程取舍，非语言层面禁止 |
+| **完全同步阻塞 I/O**（某些嵌入式场景） | `std::sys::read` / `std::sys::write` 直接 syscall，不用 `async` | 不涉及 event loop |
+
+> **原则**：MusLang **不预留抽象层供用户注入 executor**（不在 `std::async` 暴露 `Executor` trait），但**保留"不使用 std、自己写"这条退路**——这与 P8「渐进式复杂度」一致：5 行 Hello World 不感知任何运行时，写 HTTP 服务也只 `use std::net`，只有"把 MusLang 嵌进已有事件循环"这种高级场景才需要绕过 std。
+
+#### 3.15.6 与既有决策的衔接
+
+| 已有决策 | 本小节（D-19）的衔接 |
+|---|---|
+| **D-8 双 runtime**（§3.7.3） | event loop **属于 `muslang-rt`**（MusLang 原生布局：胖指针、`Waker`、类型化任务）；rt-c 侧由 C 的 event loop（libuv 等）通过 `FfiFuture`（FR-044）驱动 MusLang future，**两侧 executor 不共享任务队列**（避免"双堆税"，见 D-8 L2 hosted） |
+| **D-2 默认 C99 后端**（FR-032） | event loop **用 C 实现**（`epoll` 直接 syscall、`fd_set` 操作），通过 `std::sys` 调用；MusLang 侧只定义 `Future` / `Waker` trait 与状态机 IR。C99 后端**不需要生成 async 运行时代码**，只需生成正确的状态机 + 调用 C 的 event loop API——**这是 C99 后端能落地 async 的关键** |
+| **FR-044 FfiFuture** | rt / rt-c 边界处的 future 转换点；C 侧 event loop 驱动 MusLang future 的统一 ABI |
+| **D-13 泛型单态化**（§3.9） | **event loop 内部统一使用 `Box<dyn Future>`（trait object），不做泛型单态化**——理由：① executor 是运行时组件，一次虚调用的开销相对 I/O 等待可忽略；② 避免 `Spawn<F>` 泛型爆炸（编译器前端、任务调度器本身是泛型重灾区，单态化会威胁 `<8KB` 与编译速度）。**这是 D-13「不引入类型擦除」规则的唯一明确例外**，因它属于运行时而非语言抽象层 |
+| **§3.3.1 `net::http` API** | API 形状（Handler / ServeMux / Client）**完全不变**——D-19 只规定"谁来驱动这些 async 函数"，不改用户可见接口 |
+| **§3.2.3.1 `defer` + async 取消**（D-12） | 取消仅在 `.await` 点、协作式；event loop 在连接关闭 / 超时（`Context` 取消）时 **drop 未完成的 future**，触发 `defer` / `errdefer` 清理（规则三），资源不变量由 D-12 保证 |
+| **D-16 自举**（§3.12） | 编译器前端（MusLang 写）**不依赖 `std::net`**（编译期无需网络），自举链不受 event loop 影响；Stage 1 编译自身不要求 event loop 可用 |
+| **D-9 按需链接** | event loop 与 `std::net` 同 section 归属，**不用即剔除**，是 D-9「用哪个链哪个」的直接实例 |
+
+#### 3.15.7 决策表（D-19 定稿）
+
+| # | 决策点 | 结论 |
+|---|---|---|
+| 1 | 事件循环的归属 | **`std::net` 的内部依赖**，随 `use std::net` 自动链接，**非独立 crate** |
+| 2 | 用户是否可选运行时 | **不可**（对标 Go，不提供 Tokio 式多选） |
+| 3 | 注入 API（`#[entry]` / `block_on`） | **不引入**；`fn main()` 为同步入口 |
+| 4 | MVP 线程模型 | **单线程 epoll**，一个 loop 处理全部连接 |
+| 5 | 多线程 / work-stealing | **P1**（FR-047），`Server::listen` 签名不变、内部扩展 |
+| 6 | io_uring | **P1**，MVP 用 epoll |
+| 7 | 任务池 | 固定 256 槽，**无动态扩容**（MVP） |
+| 8 | Executor 内部用 trait object 还是单态化 | **`Box<dyn Future>`（trait object）**——D-13 的唯一例外，避免泛型爆炸 |
+| 9 | 不用 `std::net` 时 | event loop **完全不链接**，`<8KB` 可达（D-11） |
+| 10 | 嵌入 C 事件循环 / 内核场景 | **不使用 `std::net`**，自行基于 `std::sys` + `FfiFuture` 实现 |
+| 11 | P5「零运行时」口径 | **零强制运行时**：可选、不用不链、用了也透明（§3.15.4） |
+
+#### 3.15.8 待办（实现期跟进，非语言决策）
+
+- [ ] **体积基准**：实测 `Hello, World`（无 `net`）vs `Hello, World` + `use std::net` + `listen` 的二进制增量，确认 event loop < 20KB（D-11 验收口径）；
+- [ ] **任务池上限配置**：256 为拟定默认值，实现期若实测不够需通过 `Server::with_config` 暴露，**但 MVP 不允许动态扩容**（避免隐式分配，P1）；
+- [ ] **取消传播测试**：连接被 event loop 关闭时，`defer` / `errdefer` 执行顺序须符合 §3.2.3.1 规则三（纳入 D-12 `unsafe_examples/`）；
+- [ ] **io_uring 评估门槛**：P1 立项条件 = epoll 在 LoongArch64 / ARM64 上实测达不到目标吞吐（10 万连接 < 500MB，§4.1）。
+
+---
+
+
+
+| 指标 | 目标 | 参考 |
+|---|---|---|
+| 编译速度 | 增量 < 1s，全量 < 10s（中等项目） | Zig 同级 |
+| 链接速度 | < 500ms（中等项目，muslink） | mold/lld 同级 |
+| 二进制体积 | **L1 core**（不含 std、不含编译器）裸启动 **< 8KB**；测量协议：`x86_64-linux-musl`、`-Oz -flto`、静态链接、无动态加载（详见 §3.7 D-11） | Zig ~4KB |
+| 运行时开销 | 零（无 GC、无运行时） | Zig 同级 |
+| 内存安全 | 编译期保证，零 `unsafe` 块 | Rust 同级 |
+| 并发吞吐 | 10 万连接 < 500MB | 优于 Go（无 GC 压力）|
+
+## 4. 非功能需求
+
 ### 4.1 性能指标
 
 | 指标 | 目标 | 参考 |
@@ -1468,6 +1642,30 @@ fn main() {
 | LoongArch64 | R_LARCH_32, R_LARCH_64, R_LARCH_B26 | P0 |
 | RISC-V64 | R_RISCV_64, R_RISCV_CALL, R_RISCV_PCREL_HI20 | P1 |
 
+### 12.7 `net` 运行时绑定（v0.4.4 已定，见 §3.15）
+
+> **v0.4.4 状态**：原「async 运行时绑定」待定项已于 v0.4.4 **定稿为 D-19**，详见 §3.15（`std::net` 事件循环作为依赖自动带入、单线程 epoll MVP、无注入 API、P5 语义澄清）。本节仅保留历史讨论供追溯，**新设计以 §3.15 为准**。
+
+**历史方案对比（阶段一评审用，已归档）**：
+
+| 方案 | 做法 | 结论 |
+|---|---|---|
+| **A. 运行时内置（Go 模型）** | `muslang-rt` 内含默认 executor，`#[entry]` 自动启动 | ❌ **不采用**——引入注入宏，违背"零 boilerplate"的初衷 |
+| **B. 运行时可选注入（Rust 模型）** | std 只定义 `Future` trait，用户自选 executor（`muslang-tokio` 等） | ❌ **不采用**——把"选运行时"暴露成用户第一道门槛，违背 P7「网络开箱即用」 |
+| **C. 默认内置 + 可选剔除** | 默认带精简 executor，高级用户 `no_rt` 剔除 | ⚠️ **部分采纳**——采纳"默认内置"，但**剔除方式不是 feature flag，而是"不用 `std::net` 即不链接"**（D-9 按需链接的天然结果），且**不提供 `no_rt` feature** |
+| **✅ D. 作为 `net` 依赖自动带入（D-19 定稿）** | 事件循环 = `std::net` 内部实现细节，用户不可见、不可选、不污染全局 | ✅ **采用**——最符合 P7 + P4 + D-9「按需链接」，详见 §3.15 |
+
+**定稿结论（D-19）**：
+- 事件循环随 `use std::net` 自动链接，**不提供运行时选择**、**不引入 `#[entry]` / `block_on`**；
+- MVP = **单线程 epoll**，多线程 / work-stealing / io_uring = P1（FR-047）；
+- Executor 内部用 `Box<dyn Future>`（D-13 唯一例外）；
+- P5「零运行时」澄清为 **「零强制运行时」**（§3.15.4）；
+- 高级替换路径：**不使用 `std::net`**，自行基于 `std::sys` + `FfiFuture` 实现。
+
+### 12.8 分配器模型（仍待定）
+
+> **状态**：v0.4.4 未决策，保持待定。已知锚点：`alloc` 包 = `GeneralPurposeAllocator`（FR-021，P0）、分配器显式传递（FR-008，Zig 风格，P4）、`MusAllocator::from_c` 桥接 deallocator 配对（§3.8.4，D-7）。核心待定项：**零成本抽象边界**（allocator 参数是否单态化、与 D-13 25 层限制的交互）、**L1 core 无 libc 时的默认 allocator**（bump / pool / 静态分区）、**`no_std` 场景的 allocator 注入方式**。
+
 ---
 
 ## 13. 文档体系
@@ -1575,6 +1773,12 @@ docs/
 | `mktplace` | MusLang 源码级包管理器 + 工作区编排器，名称谐音 marketplace |
 | hypo | 独立的系统级软件分发工具，与 `mktplace` 各司其职 |
 | 可重现构建（Reproducible Build） | 同一源码多次构建产出比特一致的二进制，含确定性输出规范 |
+| event loop（事件循环） | `std::net` 的内部组件，负责 epoll/kqueue 等待 + 就绪 fd 分发；**随 `use std::net` 自动链接，对用户不可见**（D-19） |
+| executor | 任务调度器，驱动 `Future` 状态机的 `poll`；MusLang 中即 event loop 的一部分，**不暴露为独立 trait** |
+| 单线程 epoll（MVP） | D-19 的 MVP 线程模型：一个 event loop 处理全部连接，无锁、无 work-stealing |
+| work-stealing | P1 调度策略（FR-047）：多线程下任务跨 worker 窃取；MVP 不实现 |
+| `Box<dyn Future>` | executor 内部的任务存储方式（D-19）；D-13「不引入类型擦除」规则的**唯一例外**，因 executor 属运行时 |
+| P5「零强制运行时」 | D-19 澄清后的 P5 准确表述：运行时可选、不用不链、用了也透明（非"二进制里完全没有运行时组件"） |
 
 ### 15.3 变更记录
 
@@ -1588,6 +1792,7 @@ docs/
 | v0.4.2 | 2026-09-04 | **语言机制细化**：① 泛型单态化策略（§3.9，D-13）：**HIR 层单态化**（后端只见到单态后具体函数）、**递归单态化深度硬限 25 层、超限 = 语法错误**、不引入 `dyn` 类型擦除、配合按需链接 + `--gc-sections` 三层控制膨胀、3 类错误码（`E_MONO_*`）；② 生命周期标注策略（§3.10，D-14）：方案 B——函数签名默认全省略 / 推断失败给建议报错（`E_LIFETIME_AMBIGUOUS` 附建议）、**结构体·枚举不可省**、`'static` 保留、**HRTB 推迟 1.0**、`extern` FFI 边界强制显式标注；③ C++ 互操作边界定稿（§3.11，D-15）：**vtable = Itanium C++ ABI**、**异常禁止跨越 FFI 边界**（编译期拒绝 throwing 签名）、**RTTI 不支持**、**模板须 C++ 侧预实例化**（MusLang 只见到具体类型）、1.0 支持边界一览表、与 D-3/D-7/D-4 衔接 | Yuanbao (AI) |
 
 | v0.4.3 | 2026-09-05 | **工程路径定稿**：① 自举路径与 staging 策略（§3.12，D-16）：M1 部分自举（前端 MusLang 写 + 后端 Rust 写）、Stage 0 宿主语言 = Rust、先编译 std 再编译编译器、确定性输出（可重现构建）推迟至 M2、完整自举含 C99 后端推迟至 M2/M3、与 D-13 耦合说明；② 包管理器（§3.13，D-17）：M1 = Cargo 复用（`build.rs` 驱动 muslangc）+ 三阶段演进（Cargo → hypo 成熟后 → `mktplace`），`mktplace` 谐音 marketplace、参考 hypo 分发安全模型 + pets_tools 编排能力、与 hypo 各司其职；③ 软件分发（§3.14，D-18）：hypo 为独立的系统级软件分发工具，`mktplace` 管源码/依赖/构建、hypo 管产物分发/部署，分工矩阵 + `mktplace.toml` vs `hypo-manifest.toml` + M1 仅知晓不集成；④ §3.7.1 追加 D-16/D-17/D-18；⑤ §12.3 重写为跳转 + 历史方案归档；⑥ §8 M3-1~M3-3 与 §3.12 Stage 0/1/2 对齐 | Yuanbao (AI) |
+| v0.4.4 | 2026-09-05 | **运行时绑定定稿**：① `net` 事件循环（event loop / executor）**作为 `std::net` 的内部依赖自动带入**（§3.15，D-19）：用户 `use std::net` 即链接、**不提供独立的"运行时选择"**、**不引入 `#[entry]` / `block_on` 注入 API**（对标 Go，P7「网络开箱即用」）；② **MVP = 单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing = P1（FR-047）、io_uring = P1；③ executor 内部用 **`Box<dyn Future>`**（D-13 泛型单态化的**唯一例外**，避免 `Spawn<F>` 泛型爆炸）；④ **不用 `std::net` 时 event loop 完全不链接**，`<8KB` 仍可达（D-11）；⑤ 高级替换路径：不使用 `std::net`、自行基于 `std::sys` + `FfiFuture`（FR-044）实现（嵌入 C loop / 内核场景）；⑥ **澄清 P5「零运行时」=「零强制运行时」**（可选、不用不链、用了也透明，§3.15.4）；⑦ §12.7 归档 A/B/C/D 四方案对比（最终采纳 D）；⑧ §15.2 术语表新增 event loop / executor / work-stealing / 单线程 epoll；⑨ §1.1、§3.7.1（D-19）同步 | Yuanbao (AI) |
 
 ---
 
