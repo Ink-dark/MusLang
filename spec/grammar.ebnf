@@ -1,0 +1,287 @@
+(* ==========================================================================
+   MusLang Grammar (EBNF) — v0.1 draft
+   --------------------------------------------------------------------------
+   文件角色 : M1-0 决策冻结的语法骨架；M1-1「语法定义」的直接输入
+   上游     : docs/prd.md v0.4.6
+              - D-1 / FR-001a/001b : 类 Rust 视觉相似，不保证源码级兼容
+              - FR-002             : 无 unsafe 块
+              - FR-003/004         : *allowzero T / *anyopaque 类型级安全标注
+              - FR-005/006         : extern "C" / @cImport
+              - FR-009 / D-12      : defer / errdefer（v0.4.6 语义：defer 全路径执行）
+              - FR-011             : ? 错误传播
+              - D-7                : #[muslang::strategy(A|C)] 与参数级归属标注
+              - D-13               : 不引入 dyn 类型擦除；单态化深度 25 为语义限制
+              - D-14               : 函数签名生命周期可省略；结构体/枚举必须显式
+              - D-19               : fn main 为同步入口（无 #[entry] / block_on）
+              - D-20               : #[default_allocator] / use ... as default
+   记法     : (* 注释 *)；[ X ] 可选；{ X } 重复（含 0 次）；| 选择；"..." 终结符
+   标注     : 产生式尾随 (* ⚠ 未定 ... *) 表示 PRD 尚未定稿，进入 M1-1 前须逐条评审
+   ==========================================================================)
+
+
+(* ============================ 1. 编译单元 ============================ *)
+
+program         = { outer_attribute | inner_attribute } { item } ;
+
+inner_attribute = "#!" "[" attr_args "]" ;        (* 例: #![no_std] #![no_runtime] (D-11/D-20) *)
+outer_attribute = "#" "[" attr_args "]" ;         (* 例: #[test] #[default_allocator(a)] #[repr(C)] *)
+
+attr_args       = attr_path [ "(" attr_payload ")" ] ;
+attr_path       = identifier { "::" identifier } ;
+attr_payload    = attr_token { attr_token } ;     (* 透传给编译期属性解析，不展开为表达式 *)
+attr_token      = identifier | "::" | "=" | "," | string_literal | int_literal | "(" attr_payload ")" ;
+
+
+(* ============================ 2. 条目 (item) ============================ *)
+
+item          = fn_item | struct_item | enum_item | trait_item | impl_item
+              | mod_item | use_item | extern_block | type_alias
+              | const_item | static_item ;
+
+visibility    = [ "pub" [ "(" visibility_scope ")" ] ] ;
+visibility_scope = "crate" | "self" | "super" | "in" type_path ;   (* ⚠ 未定: MVP 是否仅保留 pub / pub(crate) *)
+
+(* ---- 函数（D-19: fn main 必须为同步 —— async main 由语义校验拒绝，不在语法层） ---- *)
+fn_item       = visibility "async"? "fn" identifier generics? fn_params return_type? where_clause?
+                ( block_expr | ";" ) ;
+              (* async fn 编译期展开为状态机 (FR-043)；defer/errdefer 语义见 D-12 *)
+
+fn_params     = "(" [ param { "," param } [ "," ] ] ")" ;
+param         = [ muslang_param_attr ] [ "&" lifetime_token? "mut"? ] pattern ":" type ;
+              (* self 参数 ⚠ 未定: 作为隐式首参还是独立 self_param 产生式 *)
+muslang_param_attr = "#[" "[" "muslang" "::" ( "take" | "borrow" | "borrow_mut" | "ret" ) "]" "]" ;
+              (* D-7 C 策略参数级归属标注；A/C 不得同函数混用 → 语义校验 E_FFI_MIXED_STRATEGY *)
+return_type   = "->" type ;
+
+generics      = "<" generic_param { "," generic_param } ">" ;
+generic_param = lifetime_token | ( identifier [ ":" generic_bounds ] ) ;
+generic_bounds = generic_bound { "+" generic_bound } ;
+generic_bound = trait_path | lifetime_token ;
+where_clause  = "where" where_pred { "," where_pred } ;
+where_pred    = ( type | lifetime_token ) ":" generic_bounds ;
+              (* where 语法保留以承载 trait bound；MVP 常用度 ⚠ 未定 *)
+
+(* ---- 数据类型 ---- *)
+struct_item   = visibility "struct" identifier generics? ( struct_fields | ";" ) ;
+struct_fields = "{" [ field { "," field } [ "," ] ] "}" ;
+field         = visibility identifier ":" type ;
+
+enum_item     = visibility "enum" identifier generics? "{" [ variant { "," variant } [ "," ] ] "}" ;
+variant       = visibility identifier [ variant_payload ] ;
+variant_payload = "(" [ type { "," type } [ "," ] ] ")" | struct_fields ;
+
+(* ---- trait / impl ---- *)
+trait_item    = visibility "trait" identifier generics? where_clause? "{" { trait_member } "}" ;
+trait_member  = fn_item | const_item | type_alias ;
+impl_item     = "impl" generics? type where_clause? "{" { impl_member } "}"
+              | "impl" generics? trait_path "for" type where_clause? "{" { impl_member } "}" ;
+impl_member   = fn_item | const_item | type_alias ;
+              (* trait 关联类型 / 默认方法体 ⚠ 未定: MVP 范围 *)
+
+(* ---- 模块与 use ---- *)
+mod_item      = visibility "mod" identifier ( ";" | "{" { item } "}" ) ;
+
+use_item      = visibility "use" use_path ";" ;
+use_path      = use_segment { "::" use_segment } ;
+use_segment   = identifier | "self" | "super" | "crate" | "*"
+              | "{" use_path { "," use_path } "}" ;
+              (* D-20 模块级默认分配器: use std::alloc::Gpa as default;
+                 "as default" 为保留别名（仅允许用于分配器类型） ⚠ 未定: 是否语法层强制 *)
+
+(* ---- FFI（extern 块内默认 repr(C)，§3.2.1 规则 2） ---- *)
+extern_block  = "extern" abi_name "{" { extern_fn } "}" ;
+abi_name      = string_literal ;      (* "C" | "C++"；C++ 边界遵守 D-15 *)
+extern_fn     = [ strategy_attr ] "fn" identifier fn_params return_type? ";" ;
+strategy_attr = "#[" "[" "muslang" "::" "strategy" "(" ( "A" | "C" ) ")" "]" "]" ;
+              (* 无标注 = 默认 A（严格移交）→ 报 E_FFI_MISSING_ATTRIBUTE 当上下文要求 C *)
+
+(* ---- 其他条目 ---- *)
+type_alias    = visibility "type" identifier generics? "=" type ";" ;
+const_item    = visibility "const" identifier ":" type "=" expression ";" ;
+static_item   = visibility "static" "mut"? identifier ":" type "=" expression ";" ;
+              (* static mut 属类型级不安全操作，进 D-4 审计清单 ⚠ 未定: MVP 是否保留 *)
+
+
+(* ============================ 3. 类型 ============================ *)
+
+type           = ref_type | ptr_type | array_type | slice_type | tuple_type
+               | path_type | never_type | inferred_type ;
+
+ref_type       = "&" lifetime_token? "mut"? type ;
+
+ptr_type       = "*" ( "const" | "mut" ) type           (* 不可为空裸指针（默认安全分级见 spec/memory-model.md） *)
+               | "*allowzero" ( "const" | "mut" ) type  (* 可空裸指针：类型级不安全标志 (FR-003) *)
+               | "*anyopaque" ;                          (* C void* 等价 (FR-004) *)
+
+array_type     = "[" type ";" expression "]" ;
+slice_type     = "[" type "]" ;                  (* 胖指针布局；是否携带生命周期参数 ⚠ 未定 *)
+tuple_type     = "(" [ type { "," type } [ "," ] ] ")" ;
+never_type     = "!" ;
+inferred_type  = "_" ;
+
+path_type      = type_path_segment { "::" type_path_segment } ;
+type_path_segment = identifier [ generics ] [ turbofish ] ;
+turbofish      = "::" "<" type { "," type } ">" ;   (* 泛型显式实例化：Vec::<i32>::new() *)
+primitive_type = "bool" | "char" | "str" | "f32" | "f64"
+               | "i8" | "i16" | "i32" | "i64" | "i128" | "isize"
+               | "u8" | "u16" | "u32" | "u64" | "u128" | "usize" ;
+               (* primitive_type 经 type_path 首段吸收，非独立产生式；
+                  c_int / c_char / c_void 等由 std::c 提供 (FR-022)，非关键字 *)
+
+(* 生命周期（D-14）：
+   - 函数签名引用参数/返回值可全省略，推断失败报 E_LIFETIME_AMBIGUOUS 并给建议；
+   - struct / enum 字段中的引用必须显式标注（E_LIFETIME_STRUCT_OMITTED）——语义校验，非语法层区分；
+   - HRTB "for<'a>" MVP 不支持（E_HRTB_NOT_SUPPORTED），语法层不产生式；
+   - extern "C"/"C++" 签名中的引用必须显式标注（E_LIFETIME_FFI_OMITTED）——语义校验。 *)
+
+
+(* ============================ 4. 模式 ============================ *)
+
+pattern          = literal_pattern | identifier_pattern | wildcard_pattern
+                 | tuple_pattern | struct_pattern | enum_pattern
+                 | range_pattern | ref_pattern ;
+
+literal_pattern  = int_literal | float_literal | char_literal | string_literal | "true" | "false" ;
+identifier_pattern = [ "&" ] [ "mut" ] identifier ;   (* 绑定模式 *)
+wildcard_pattern = "_" ;
+tuple_pattern    = "(" [ pattern { "," pattern } [ "," ] ] ")" ;
+struct_pattern   = type_path "{" [ field_pattern { "," field_pattern } [ "," ] ] "}" ;
+field_pattern    = identifier [ ":" pattern ] ;
+enum_pattern     = type_path [ "(" [ pattern { "," pattern } [ "," ] ] ")" ] ;
+range_pattern    = ( int_literal | char_literal ) ( ".." | "..=" ) ( int_literal | char_literal ) ;
+ref_pattern      = "&" pattern ;
+                 (* 命名捕获 vs 绑定歧义、or-pattern、@ 绑定 ⚠ 未定（M1-1 定稿） *)
+
+
+(* ============================ 5. 语句 ============================ *)
+
+block_expr      = "{" { statement } [ expression ] "}" ;
+statement       = let_stmt | defer_stmt | errdefer_stmt | expression_stmt | item | ";" ;
+
+let_stmt        = "let" pattern [ ":" type ] [ "=" expression ] ";" ;
+                  (* let-else ⚠ 未定 *)
+
+defer_stmt      = "defer" ( expression | block_expr ) ";" ;
+                  (* 作用域任何退出路径执行，LIFO（D-12 规则一/二）；块内禁止 .await → E_DEFER_AWAIT_FORBIDDEN *)
+errdefer_stmt   = "errdefer" ( expression | block_expr ) ";" ;
+                  (* 错误退出路径额外执行，与 defer 同栈 LIFO（D-12 规则二）；体须 infallible → E_ERRDEFER_INFALLIBLE *)
+
+expression_stmt = expression ";" | expression ;
+
+
+(* ============================ 6. 表达式 ============================ *)
+
+expression        = assignment_expr ;
+assignment_expr   = range_expr [ assignment_op assignment_expr ] ;
+assignment_op     = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>=" ;
+                  (* 复合赋值在 move 类型上的语义 ⚠ 未定 *)
+range_expr        = borrow_expr [ range_op borrow_expr ] ;
+range_op          = ".." | "..=" ;
+borrow_expr       = [ borrow_op ] or_expr ;
+borrow_op         = "&" [ "mut" ] | "&&" ;
+or_expr           = and_expr { "||" and_expr } ;
+and_expr          = cmp_expr { "&&" cmp_expr } ;
+cmp_expr          = bit_or_expr [ ( "==" | "!=" | "<" | ">" | "<=" | ">=" ) bit_or_expr ] ;
+bit_or_expr       = bit_xor_expr { "|" bit_xor_expr } ;
+bit_xor_expr      = bit_and_expr { "^" bit_and_expr } ;
+bit_and_expr      = shift_expr { "&" shift_expr } ;
+shift_expr        = add_expr { ( "<<" | ">>" ) add_expr } ;
+add_expr          = mul_expr { ( "+" | "-" ) mul_expr } ;
+mul_expr          = cast_expr { ( "*" | "/" | "%" ) cast_expr } ;
+cast_expr         = unary_expr [ "as" type ] ;
+unary_expr        = ( "-" | "!" | "*" ) unary_expr | postfix_expr ;
+postfix_expr      = primary_expr { postfix } ;
+postfix           = "?"                       (* 错误传播 (FR-011) *)
+                  | ".await"                  (* async 取消语义见 D-12 规则三 (FR-043) *)
+                  | "." identifier            (* 字段访问 *)
+                  | "(" [ expression { "," expression } [ "," ] ] ")"   (* 调用 *)
+                  | "[" expression "]"        (* 索引；越界 → panic → abort（全模式检查，§4.3.1） *)
+                  | "." int_literal           (* 元组字段访问 *) ;
+
+primary_expr      = literal | identifier_path | group_expr | tuple_expr | array_expr
+                  | block_expr | if_expr | match_expr | loop_expr | while_expr | for_expr
+                  | closure_expr | async_block | builtin_call | macro_call ;
+
+literal           = int_literal | float_literal | char_literal | string_literal
+                  | raw_string_literal | "true" | "false" ;
+
+group_expr        = "(" expression ")" ;
+tuple_expr        = "(" [ expression { "," expression } [ "," ] ] ")" ;
+array_expr        = "[" [ expression { "," expression } [ "," ] ] "]"
+                  | "[" expression ";" expression "]" ;
+
+if_expr           = "if" expression block_expr [ "else" ( if_expr | block_expr ) ] ;
+match_expr        = "match" expression "{" [ match_arm { "," match_arm } [ "," ] ] "}" ;
+match_arm         = pattern [ "if" expression ] "=>" ( expression | block_expr ) ;
+
+loop_expr         = "loop" block_expr ;
+while_expr        = "while" expression block_expr | "while" "let" pattern "=" expression block_expr ;
+for_expr          = "for" pattern "in" expression block_expr ;
+                  (* IntoIterator 协议细节 ⚠ 未定 *)
+return_expr       = "return" [ expression ] ;    (* 经 primary 吸收 *)
+break_continue    = "break" [ expression ] | "continue" ;   (* break 值语义 ⚠ 未定 *)
+                  (* return/break/continue 并入 primary_expr 关键字分支 *)
+
+closure_expr      = [ "move" ] "|" [ closure_param { "," closure_param } ] "|"
+                    [ "->" type ] ( expression | block_expr ) ;
+closure_param     = pattern [ ":" type ] ;
+                  (* 闭包推断与 Fn/FnMut/FnOnce trait 族 ⚠ 未定 *)
+
+async_block       = "async" [ "move" ] block_expr ;
+                  (* async fn 为 fn_item 上的限定符；async 闭包由 "闭包体为 async block" 表达（§3.15.3 示例） *)
+
+builtin_call      = "@" identifier "(" [ expression { "," expression } [ "," ] ] ")" ;
+                  (* @cImport(...) (FR-006)：编译期解析 C/C++ 头文件；@ptrCast 等内建转换 ⚠ 未定: 内建完整清单 *)
+
+macro_call        = identifier "!" [ "(" attr_token { attr_token } ")" | "[" ... "]" | "{" ... "}" ] ;
+                  (* ⚠ 未定: 宏系统未定稿（§12.1，阶段一 = 方案 C 仅泛型）。
+                     MVP 仅允许编译器内建白名单：panic! / assert! / assert_eq! / unimplemented!，
+                     其余宏一律拒绝；产生式仅为白名单成员保留解析位置。 *)
+
+
+(* ============================ 7. 词法层（概要） ============================ *)
+
+identifier        = ( letter | "_" ) { letter | digit | "_" } ;   (* raw identifier r#name ⚠ 未定 *)
+lifetime_token    = "'" identifier ;                              (* 'a 'static；保留 '_, '_ ⚠ 未定 *)
+int_literal       = digit { ( digit | "_" ) } [ int_suffix ] ;
+int_suffix        = "i8" | "i16" | "i32" | "i64" | "i128" | "isize"
+                  | "u8" | "u16" | "u32" | "u64" | "u128" | "usize" ;
+                  (* 0b / 0o / 0x 前缀 ⚠ 未定: 默认纳入 *)
+float_literal     = ... ;    (* M1-1 定稿：指数、后缀 f32/f64、下划线分隔 *)
+char_literal      = ... ;    (* M1-1 定稿：Unicode 标量 + 转义 *)
+string_literal    = ... ;    (* M1-1 定稿：转义表；raw_string r"..." r#"..."# 对齐 Rust 惯例 *)
+comment           = line_comment | block_comment ;   (* 嵌套块注释 / doc comment /// ⚠ 未定 *)
+letter            = "A" | "B" | ... | "Z" | "a" | "b" | ... | "z" | "_" ;
+digit             = "0" | "1" | ... | "9" ;
+
+
+(* ============================ 8. 词法保留字 ============================ *)
+
+(* 关键字（严格保留）：
+   fn let mut const static struct enum trait impl mod use pub
+   match if else while loop for in return break continue
+   defer errdefer async await move where
+   extern self super crate as true false
+   allowzero anyopaque        ← 指针类型标注关键字（ptr_type）
+   underscore 已由 "_" 模式/推断类型占用
+
+   ⚠ 未定（M1-1 评审项）：
+   - unsafe ：FR-002 已移除 unsafe 块；此词法是否彻底释放给用户标识符，
+              或保留为保留字以阻断迁移歧义 —— 待定。
+   - dyn    ：D-13 不引入类型擦除；std 内部 Box<dyn Future> 属运行时实现细节。
+              语言表面语法不产生 dyn 产生式；词法保留与否待定。
+   - for    ：仅用于 for-in 循环；HRTB "for<'a>" MVP 不支持（D-14）。
+   - macro  ：宏系统未定稿（§12.1）。
+*)
+
+(* ============================ 9. 语义限制（非语法，备忘） ============================
+
+   - 递归单态化深度硬限 25 层，超限报 E_MONO_DEPTH_EXCEEDED（D-13）；
+     该限制在 HIR 构建期检查，非文法约束。
+   - 同一 extern 函数内 A/C 策略不得混用（D-7，E_FFI_MIXED_STRATEGY）。
+   - extern 签名中引用参数必须显式生命周期（D-14，E_LIFETIME_FFI_OMITTED）。
+   - defer 体内禁止 .await（D-12，E_DEFER_AWAIT_FORBIDDEN）；
+     errdefer 体必须 infallible（E_ERRDEFER_INFALLIBLE）。
+   - L1 core（#![no_std] + #![no_runtime]）中 Box::new/Vec::new 无默认分配器
+     报 E_ALLOC_NO_DEFAULT（D-20）。
+   ========================================================================== *)
