@@ -10,7 +10,7 @@
 
 | 看板列 | 条目 |
 |---|---|
-| ✅ **已完成** | PRD v0.1 → v0.4.7（D-0~D-21 决策记录：D-12 语义修订 + D-21 国密原生支持）；`docs/CHANGELOG.md` 同步；`spec/` 五份 M1-0 规格草案 v0.1 落库；本看板建立 |
+| ✅ **已完成** | PRD v0.1 → v0.4.7（D-0~D-21 决策记录：D-12 语义修订 + D-21 国密原生支持）；`docs/CHANGELOG.md` 同步；`spec/` 五份 M1-0 规格草案 v0.1 落库；**D-0/D-3/D-5/D-6 冻结草案 + D-4 落地草案落 `docs/draft/`（M1-0 评审件，6 文件）**；本看板建立 |
 | 🔄 **进行中** | **M1-0 决策冻结**（见 Todolist 第一组）——`spec/crypto-gm.md` 待起草（D-21 §3.17.8） |
 | ⏸️ **受阻** | 无 |
 | 📋 **未开始** | M1-1 ~ M1-8、阶段二（M2-1~M2-6）、阶段三（M3-1~M3-7）、§12 开放问题（comptime / WASM） |
@@ -21,11 +21,13 @@
 
 ### ① 当前里程碑：M1-0 决策冻结（2 周窗口，阶段一放行门槛）
 
-- [ ] **D-0**（共享内存布局规范 IR/HIR）冻结
-- [ ] **D-3**（共享方言 + 统一 HIR 互操作）冻结
-- [ ] **D-5**（是否引入 MLIR）决策并冻结（若引入需同步上修 `<8KB` 指标）
-- [ ] **D-6**（调用拓扑与开销口径）冻结
-- [ ] **D-4 落地**：禁止操作清单定稿 + `unsafe_examples/` 用例集 + `--unsafe-allowed=false` CI 门禁实现（骨架见 `spec/unsafe.md`）
+> 冻结草案已落 `docs/draft/`（[README](draft/README.md) 含毕业流程与评审检查单）——评审通过后正文迁入 `spec/`、PRD 状态更新、归档。
+
+- [ ] **D-0**（共享内存布局规范 IR/HIR）冻结 —— 📝 草案 [draft/d0-memory-layout.md](draft/d0-memory-layout.md)（LAY-1，F/R/P 分级 + 胖指针/vtable/FfiFuture/跨界 Result + layout-diff 门禁）
+- [ ] **D-3**（共享方言 + 统一 HIR 互操作）冻结 —— 📝 草案 [draft/d3-dialect-hir-interop.md](draft/d3-dialect-hir-interop.md)（薄前端契约 + 无损性定义 + 降级表 + HIR 差分测试）
+- [ ] **D-5**（是否引入 MLIR）决策并冻结 —— 📝 草案 [draft/d5-mlir-decision.md](draft/d5-mlir-decision.md)（**提议不引入**，附 3 条量化复评触发条件）
+- [ ] **D-6**（调用拓扑与开销口径）冻结 —— 📝 草案 [draft/d6-call-topology.md](draft/d6-call-topology.md)（B0/B1/B2/B3 边界定义 + O(模块数) 承诺 + 编译器义务 + 验收预算）
+- [ ] **D-4 落地**：禁止操作清单定稿（F-01~F-15，5 枚新增错误码）+ `unsafe_examples/` 用例集规格（EXPECT.toml schema）+ `--unsafe-allowed=false` CI 门禁 —— 📝 草案 [draft/d4-unsafe-gate.md](draft/d4-unsafe-gate.md)
 - [ ] **D-11 确认**：L1 是否含 libc（建议默认 musl，影响 rt-c 设计下限）
 - [ ] `spec/crypto-gm.md` 起草（D-21 §3.17.8）：SM2/SM3/SM4 向量集清单、`#[constant_time]` MIR 检查规则、`bignum` 定长类型布局
 - [ ] `spec/grammar.ebnf`：从 v0.1 骨架补完为可测语法（M1-1 的直接输入；⚠ 标注项逐条评审）
@@ -100,6 +102,11 @@
 | `spec/backend-c99.md` | 🔄 v0.1 草案 | C99 后端映射规则 |
 | `spec/std-sys.md` | 🔄 v0.1 草案 | std 拆分 / sys 三端 / event loop |
 | `spec/crypto-gm.md` | 📋 未开始 | D-21 国密实现规格（向量集 / constant-time 规则 / bignum 布局），M1-0 窗口内起草 |
+| `docs/draft/d0-memory-layout.md` | 🔄 提议冻结 | D-0 共享内存布局规范（LAY-1） |
+| `docs/draft/d3-dialect-hir-interop.md` | 🔄 提议冻结 | D-3 方言 + 统一 HIR 互操作契约 |
+| `docs/draft/d4-unsafe-gate.md` | 🔄 落地草案 | D-4 禁止清单定稿 + 用例集 + CI 门禁 |
+| `docs/draft/d5-mlir-decision.md` | 🔄 提议冻结 | D-5 不引入 MLIR（复评触发条件） |
+| `docs/draft/d6-call-topology.md` | 🔄 提议冻结 | D-6 调用拓扑与开销口径 |
 | `language-reference/`、`std-lib/`、`tutorials/`、`internals/`、`rfc/` | 📋 未开始 | 随 M1 推进建立 |
 
 ---
@@ -110,3 +117,4 @@
 |---|---|
 | 2026-09-05 | 建立看板；M1-0 五份 spec 草案（`grammar.ebnf` / `memory-model.md` / `unsafe.md` / `backend-c99.md` / `std-sys.md`）落库；同步 PRD v0.4.6（D-12 语义修订 + 自洽性清理） |
 | 2026-09-06 | 同步 PRD v0.4.7（D-21 国密原生支持）：M1-0 增加 `spec/crypto-gm.md` 起草项；M1 增加 SM3 交付项；M2-5 验收口径细化；决策冻结跟踪更新为 16/4/1/1 |
+| 2026-09-06 | D-0/D-3/D-5/D-6 冻结草案 + D-4 落地草案落 `docs/draft/`（6 文件，M1-0 评审件）：禁止清单 F-01~F-15 定稿、MLIR 提议不引入、边界 B1~B3 与 LAY-1 布局分级成文 |
