@@ -10,7 +10,7 @@
 
 | 看板列 | 条目 |
 |---|---|
-| ✅ **已完成** | PRD v0.1 → v0.4.7（D-0~D-21 决策记录：D-12 语义修订 + D-21 国密原生支持）；`docs/CHANGELOG.md` 同步；`spec/` 五份 M1-0 规格草案 v0.1 落库；**D-0/D-3/D-5/D-6 冻结草案 + D-4 落地草案落 `docs/draft/`（M1-0 评审件，6 文件）**；本看板建立 |
+| ✅ **已完成** | PRD v0.1 → v0.4.7（D-0~D-21 决策记录：D-12 语义修订 + D-21 国密原生支持）；`docs/CHANGELOG.md` 同步；`spec/` 五份 M1-0 规格草案 v0.1 落库；**D-0/D-3/D-5/D-6 冻结草案 + D-4 落地草案落 `docs/draft/`（M1-0 评审件，6 文件）**；本看板建立；**编译器工程地基（2026-09-06）：Cargo workspace + `crates/muslang-syntax` 词法器/语法器/AST v0.1（grammar.ebnf 基线，26 测试绿）+ `muslangc` CLI + GitHub Actions CI** |
 | 🔄 **进行中** | **M1-0 决策冻结**（见 Todolist 第一组）——`spec/crypto-gm.md` 待起草（D-21 §3.17.8） |
 | ⏸️ **受阻** | 无 |
 | 📋 **未开始** | M1-1 ~ M1-8、阶段二（M2-1~M2-6）、阶段三（M3-1~M3-7）、§12 开放问题（comptime / WASM） |
@@ -36,7 +36,7 @@
 
 ### ② M1-1 ~ M1-8（阶段一 Bootstrap，2026 Q4-2027 Q1）
 
-- [ ] **M1-1** 语法定义：grammar.ebnf 定稿 + 100% 语法测试通过（FR-001a/001b）
+- [ ] **M1-1** 语法定义：grammar.ebnf 定稿 + 100% 语法测试通过（FR-001a/001b）—— 🔄 **已起步（2026-09-06）**：`crates/muslang-syntax` 词法器/语法器/AST v0.1 落库，PRD §9 hello.mus 零诊断通过；grammar.ebnf 实现含 14 项 `DEVIATIONS` 临时裁定待评审（crate 文档）
 - [ ] **M1-2** 所有权检查器 v0.1（通过 Rust 测试用例子集，NLL 除外）
 - [ ] **M1-3** `*allowzero` 类型系统：类型检查 + 代码生成 + FFI 审计清单
 - [ ] **M1-4** `@cImport`：能解析 MusKitty 现有 C 头文件
@@ -107,6 +107,8 @@
 | `docs/draft/d4-unsafe-gate.md` | 🔄 落地草案 | D-4 禁止清单定稿 + 用例集 + CI 门禁 |
 | `docs/draft/d5-mlir-decision.md` | 🔄 提议冻结 | D-5 不引入 MLIR（复评触发条件） |
 | `docs/draft/d6-call-topology.md` | 🔄 提议冻结 | D-6 调用拓扑与开销口径 |
+| `crates/muslang-syntax` | 🔄 v0.1 | 词法器 + 语法器 + AST（grammar.ebnf v0.1 基线；DEVIATIONS 14 项待 M1-1 评审） |
+| `crates/muslangc` | 🔄 v0.1 | CLI：`lex` / `parse` / `version`（M1-7 的第一个可运行切片） |
 | `language-reference/`、`std-lib/`、`tutorials/`、`internals/`、`rfc/` | 📋 未开始 | 随 M1 推进建立 |
 
 ---
@@ -118,3 +120,4 @@
 | 2026-09-05 | 建立看板；M1-0 五份 spec 草案（`grammar.ebnf` / `memory-model.md` / `unsafe.md` / `backend-c99.md` / `std-sys.md`）落库；同步 PRD v0.4.6（D-12 语义修订 + 自洽性清理） |
 | 2026-09-06 | 同步 PRD v0.4.7（D-21 国密原生支持）：M1-0 增加 `spec/crypto-gm.md` 起草项；M1 增加 SM3 交付项；M2-5 验收口径细化；决策冻结跟踪更新为 16/4/1/1 |
 | 2026-09-06 | D-0/D-3/D-5/D-6 冻结草案 + D-4 落地草案落 `docs/draft/`（6 文件，M1-0 评审件）：禁止清单 F-01~F-15 定稿、MLIR 提议不引入、边界 B1~B3 与 LAY-1 布局分级成文 |
+| 2026-09-06 | **编译器工程地基**：Cargo workspace（零外部依赖）+ `crates/muslang-syntax`（lexer/parser/AST v0.1，严格对齐 grammar.ebnf v0.1，14 项 DEVIATIONS 记录于 crate 文档）+ `crates/muslangc` CLI + GitHub Actions（fmt/clippy/test，ubuntu+windows）；26 测试全绿，PRD §9 hello.mus 为固定验收夹具 |

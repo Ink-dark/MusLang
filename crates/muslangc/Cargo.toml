@@ -1,0 +1,12 @@
+[package]
+name = "muslangc"
+description = "MusLang 编译器 CLI（M1-7 v0.1：lex / parse 前端管线）"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+muslang-syntax = { path = "../muslang-syntax" }
+
+[lints]
+workspace = true

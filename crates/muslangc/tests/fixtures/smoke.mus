@@ -1,0 +1,23 @@
+// CLI smoke 夹具：覆盖 extern / 调用 / 闭包 / async 块的最小程序。
+// （PRD §9 hello.mus 的解析验收在 muslang-syntax 的 fixture_tests 中）
+extern "C" {
+    fn seed() -> i32;
+}
+
+fn main() {
+    let s = seed();
+    if s != 0 {
+        panic!("seed failed");
+    }
+    let half = |x: i32| -> i32 {
+        x / 2
+    };
+    let v = half(s);
+    std_print(v);
+}
+
+fn std_print(v: i32) {
+    loop {
+        break;
+    }
+}

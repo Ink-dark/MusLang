@@ -1,0 +1,20 @@
+// hello.mus —— FFI 无 unsafe 块 + 网络（D-19：同步 main、无 block_on、无 #[entry]）
+use std::net::http;
+
+// FFI：extern 就是标志，不需要 unsafe 块
+extern "C" {
+    fn v8_init() -> i32;
+}
+
+fn main() {
+    let ret = v8_init();  // 调用 extern 函数，无 unsafe 块
+    if ret != 0 {
+        panic!("v8 init failed");
+    }
+
+    let server = http::Server::new("0.0.0.0:8080");
+    server.handle("GET /", |req| async {
+        http::Response::ok("Hello, MusLang!")  // async 闭包经 blanket impl 满足 Handler（§3.15.3）
+    });
+    server.listen();  // ← 同步阻塞：event loop 在此启动并驱动 async Handler（D-19）
+}
