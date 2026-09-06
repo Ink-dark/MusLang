@@ -23,7 +23,9 @@
 | `std::async` | P0 | `Future` / `Waker` / `FfiFuture`（FR-023） |
 | `std::io` | P0 | 统一 I/O 接口（FR-024） |
 | `std::channel` | P1 | mpsc / broadcast（FR-020） |
-| `std::time` / `std::encoding` / `std::crypto` / `std::net::tls` | P1 | FR-025/026/027/016（crypto 含国密 SM2/SM3/SM4） |
+| `std::time` | P1 | FR-025 |
+| `std::encoding` | P1 | FR-026（JSON/CBOR/XML；DER/PEM 供 SM2 证书解析，D-21） |
+| `std::crypto` | P1 | FR-027/048/049/050：**国密 SM3/SM4/SM2 纯 MusLang 原生实现（D-21，§3.17）**——无 OpenSSL/GmSSL/Tongsuo 依赖；`SecretBox` + `#[constant_time]`（M1 末期交付 SM3，M2-5 交付 SM4/SM2）；RSA/AES 等国际算法不进本 crate（用户经 `@cImport` 显式对接） |
 
 - **用哪个链哪个**：未 `use` 的 crate 整块被 `--gc-sections` 剔除；体积仅由实际使用决定。
 - M1 分发打包：单 crate `muslang-std` + features 控制源码参与编译（分发口径，语言层仍逐子系统按需链接，D-17 §3.13.1）。
@@ -75,4 +77,5 @@ std facade（统一 API）
 - [ ] `std::io` 与 Zig 新 Io 模型的接口对齐程度（FR-024）。
 - [ ] macOS kqueue 分发的 trait 边界（`std::os` API 形状）。
 - [ ] `FfiFuture` 的 `repr(C)` 布局（依赖 D-0 冻结）。
-- [ ] M1 `muslang-std` features 的初始清单。
+- [ ] M1 `muslang-std` features 的初始清单（含 `crypto`（SM3 only，D-21）是否入 M1 features 集）。
+- [ ] `std::crypto` CSPRNG 与 `std::sys` 熵源接口（`getrandom`）的形状（D-21 §3.17.4）。

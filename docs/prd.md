@@ -3,9 +3,9 @@
 > **项目代号**：MusLang-Qomolangma
 > **仓库**：https://github.com/Ink-dark/MusLang
 > **所属生态**：MusCat 浏览器的原生系统编程语言
-> **文档版本**：v0.4.6（自洽性修订）
+> **文档版本**：v0.4.7（国密原生支持）
 > **创建日期**：2026-08-30
-> **更新日期**：2026-09-05
+> **更新日期**：2026-09-06
 > **作者**：墨染柒（Ink-dark）
 > **状态**：评审中
 > **变更记录**：
@@ -19,6 +19,7 @@
 > - v0.4.4（2026-09-05）：运行时绑定定稿——① `net::http` / 整个 `std::net` 子系统的事件循环（event loop / executor）**作为 `std::net` 的依赖自动带入**，用户 `use std::net` 即链接，不提供独立的"运行时选择"、不引入 `#[entry]` / `block_on` 之类的注入 API（§3.15，D-19）；② 事件循环 MVP = **单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing 为 P1（FR-047）；③ 高级替换路径：不使用 `std::net`、自行基于 syscall 实现网络层（裸机 / 嵌入式场景）；④ 澄清 P5「零运行时」语义（§1.4、§3.15.4）
 > - v0.4.5（2026-09-05）：分配器模型定稿——编译期注入默认分配器、`Box`/`Vec`/`HashMap` 同机制、作用域退出自动 free、L1 core 无兜底（§3.16，D-20）
 > - v0.4.6（2026-09-05）：自洽性修订——① D-12 修正：`defer` 改为**全路径执行**（Zig 语义）、`errdefer` 仅错误路径补充执行，`?` 提前返回 `defer`+`errdefer` 同栈 LIFO（§3.2.3.1）；② D-20 `Box` 隐式 free 与 D-12 对齐、LIFO 表述更正（§3.16.3）；③ FR-001 落地为 001a/001b（D-1）；④ §9 示例对齐 D-19（同步 main、`std::net`、Handler 统一）；⑤ TLS 收敛为 FR-016（P1）；⑥ D-13 例外口径统一为第一（D-19）/第二（D-20）；⑦ §3.4.1 架构图单态化移至 HIR 层、去宏展开；⑧ §3.11.3 去 trait 对象表述；⑨ §3.10.1 `longest` 改为报错示例；⑩ §3.15.2 任务模型澄清（每连接 future + 就绪队列 256）；⑪ 时间线顺延（M1 = 2026 Q4-2027 Q1）；⑫ D-2 传播清理（§2/§7/§6.3/§11 Zig 残留）；⑬ P5 / FR-008 / FR-013 / FR-047 / §1.1 / §12 章首口径同步；⑭ 结构修复：§3.16 移位、孤儿表删除、表格结构与 citation 残留清理
+> - v0.4.7（2026-09-06）：国密原生支持——`std::crypto` 以纯 MusLang 原生实现 SM2/SM3/SM4（GB/T 32905/32907/32918），无 OpenSSL/BoringSSL/GmSSL 依赖；新增 §3.17（D-21）与 FR-048~050；FR-016 对标 RFC 8998 + TLCP（GB/T 38636-2020）；M2-5 验收口径细化（测试向量 100% + 常量时间审查）；CPU 加速为可选后端、纯软实现为基线
 
 ---
 
@@ -26,9 +27,9 @@
 
 ### 1.1 一句话定位
 
-**MusLang 是一门语法以 Rust 为参照（不保证源码级兼容）、安全模型以 Zig 的类型区分取代 `unsafe` 块、内置 Go 级网络标准库、编译产物与 Zig 同级轻量的系统编程语言。** Rust、C/C++ 三方通过**共享内存布局规范与统一 HIR** 实现编译期无损互操作（无运行时 FFI 层）；标准库按子系统拆分为独立 crate、按需链接，并通过 `sys` 层支持 Linux / macOS / Windows 三端扩展（当前仅 Linux 实装）。MusLang 是 MusCat 生态全栈自研的最后一环——从语言到编译器到链接器到内核到浏览器，全栈自主可控。
+**MusLang 是一门语法以 Rust 为参照（不保证源码级兼容）、安全模型以 Zig 的类型区分取代 `unsafe` 块、内置 Go 级网络标准库、编译产物与 Zig 同级轻量的系统编程语言。** Rust、C/C++ 三方通过**共享内存布局规范与统一 HIR** 实现编译期无损互操作（无运行时 FFI 层）；标准库按子系统拆分为独立 crate、按需链接，并通过 `sys` 层支持 Linux / macOS / Windows 三端扩展（当前仅 Linux 实装）；标准库**原生内置国密 SM2/SM3/SM4**（纯 MusLang 实现，无 OpenSSL/GmSSL 依赖，§3.17）。MusLang 是 MusCat 生态全栈自研的最后一环——从语言到编译器到链接器到内核到浏览器，全栈自主可控。
 
-> **说明（v0.4.6）**：本段仅反映已冻结/已决策的架构方向，详见 §3.7「架构决策记录」（D-0~D-20）。尚未决策的事项（WASM、comptime）仍见 §12，保持「待定」不动（调试信息已决策为 DWARF 5，见 §12.4）；自举 staging（§3.12，D-16）、包管理器（§3.13，D-17）、软件分发（§3.14，D-18）、async 运行时绑定（§3.15，D-19）、**分配器模型（§3.16，D-20）** 均已定稿。**分配器采用编译期注入默认分配器（非 `Box<T, A>` 泛型参数），`Box` 作用域退出自动 free（D-20）**。
+> **说明（v0.4.7）**：本段仅反映已冻结/已决策的架构方向，详见 §3.7「架构决策记录」（D-0~D-21）。尚未决策的事项（WASM、comptime）仍见 §12，保持「待定」不动（调试信息已决策为 DWARF 5，见 §12.4）；自举 staging（§3.12，D-16）、包管理器（§3.13，D-17）、软件分发（§3.14，D-18）、async 运行时绑定（§3.15，D-19）、分配器模型（§3.16，D-20）、**国密原生支持（§3.17，D-21）** 均已定稿。**分配器采用编译期注入默认分配器（非 `Box<T, A>` 泛型参数），`Box` 作用域退出自动 free（D-20）**。
 
 ### 1.2 核心价值：三角融合
 
@@ -86,7 +87,7 @@
 |---|---|---|---|
 | MusKitty 内核开发 | 墨染柒 + Orcha | 内存安全、C/C++ 互操作、零 GC、极小二进制 | Rust 语法 + 所有权 + `@cImport` + C99 后端（D-2） |
 | MCP Server 实现 | Agent 工具开发者 | 高并发 HTTP、登录态审批接口 | 内置 `net/http` + async/await + 零 GC |
-| 信创环境构建 | 国产 OS 适配工程师 | 全栈自主、无外部语言依赖、LoongArch64/ARM64 | 自举编译器 + 自研链接器 + 零运行时 |
+| 信创环境构建 | 国产 OS 适配工程师 | 全栈自主、无外部语言依赖、LoongArch64/ARM64 | 自举编译器 + 自研链接器 + 零运行时 + 国密原生（D-21） |
 | 第三方内核 dll 适配 | Chromium/Gecko 适配开发者 | C ABI 兼容、类型映射、内存安全 | `@cImport` + 所有权 + `extern "C"` 导出 |
 | 嵌入式/裸机开发 | 固件工程师 | 极小体积、无 libc、自定义入口 | Freestanding 链接 + 显式分配器 + 无运行时 |
 
@@ -233,7 +234,7 @@ fn process(path: &str) -> Result<(), IoError> {
 |---|---|---|---|
 | FR-014 | `net` 包：TCP/UDP/HTTP（TLS 见 FR-016） | P0 | Go `net` |
 | FR-015 | `net::http`：HTTP/1.1 + HTTP/2 客户端与服务器，async | P0 | Go `net/http` |
-| FR-016 | `net::tls`：TLS 支持，信创集成国密 SM2/SM3/SM4 | P1 | rustls / BoringSSL |
+| FR-016 | `net::tls`：TLS 支持；国密场景对齐 **RFC 8998（TLS 1.3 + SM 套件）** 与 **TLCP（GB/T 38636-2020）**，密码套件由 `std::crypto` 原生提供（§3.17，D-21） | P1 | rustls / BoringSSL |
 | FR-017 | `fs` 包：文件操作 | P0 | Go `os`/`io` |
 | FR-018 | `strings` 包：字符串处理 | P0 | Go `strings` |
 | FR-019 | `collections` 包：Vec、HashMap、BTreeMap | P0 | Rust `std::collections` |
@@ -244,7 +245,10 @@ fn process(path: &str) -> Result<(), IoError> {
 | FR-024 | `io` 包：统一 I/O 接口（对标 Zig 新 Io 模型） | P0 | Zig `std.io` |
 | FR-025 | `time` 包：时间/定时器 | P1 | Go `time` |
 | FR-026 | `encoding` 包：JSON/CBOR/XML | P1 | Go `encoding/json` |
-| FR-027 | `crypto` 包：哈希、对称加密、国密 | P1 | — |
+| FR-027 | `crypto` 包：哈希、对称加密、国密（特性清单见 §3.17） | P1 | — |
+| FR-048 | **SM3 原生哈希**：纯 MusLang 实现散列算法（GB/T 32905-2016，对标 GB/T 32905-2012 一致性），含 HMAC-SM3；常量时间实现 | P1 | §3.17（D-21） |
+| FR-049 | **SM4 原生分组密码**：纯 MusLang 实现（GB/T 32907-2016），ECB/CBC/CTR/GCM 模式；AES-NI 同级的 LoongArch/ARM CPU 指令加速为**可选后端**，纯软实现为基线 | P1 | §3.17（D-21） |
+| FR-050 | **SM2 原生公钥算法**：纯 MusLang 实现数字签名 / 密钥交换 / 公钥加密（GB/T 32918-2016），PME 曲线参数内置；SM2 证书解析依赖 `std::encoding`（DER/PEM，P1） | P1 | §3.17（D-21） |
 
 #### 3.3.1 `net::http` API 设计规范
 
@@ -440,6 +444,7 @@ MusLang async/await  ──编译期──→  状态机 struct
 | D-18 | 软件分发 | **hypo 为独立的系统级软件分发工具**（非构建时包管理器）；MusLang 编译产物经 hypo 做系统级分发部署，**hypo 与 `mktplace` 分工明确**：`mktplace` 管"源码怎么组织、依赖怎么拉、怎么构建"，hypo 管"编好的二进制/库怎么分发部署到目标机" | 已定（v0.4.3） |
 | D-19 | `net` 运行时绑定 | **事件循环（event loop / executor）作为 `std::net` 的内部依赖自动带入**：用户 `use std::net` 即链接，**不提供独立的"运行时选择"**、**不引入 `#[entry]` / `block_on` 注入 API**（对标 Go，P7「网络开箱即用」）；**MVP = 单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing = P1（FR-047），io_uring = P1；executor 内部用 **`Box<dyn Future>`**（D-13 泛型单态化的**第一个例外**，第二个为 D-20 分配器注入；避免 `Spawn<F>` 泛型爆炸）；不用 `std::net` 时 event loop 完全不链接，`<8KB` 仍可达（D-11）；嵌入已有 C 事件循环 / 内核场景**不使用 `std::net`**、自行基于 `std::sys` + `FfiFuture`（FR-044）实现；并**澄清 P5「零运行时」=「零强制运行时」**（可选、不用不链、用了也透明，§3.15.4） | 已定（v0.4.4） |
 | D-20 | 分配器模型 | **编译期注入默认分配器**（方案 C）：`Box::new(x)` / `Vec::new()` / `HashMap::new()` 可用，编译器在 HIR 层自动注入当前作用域默认分配器（**非 `Box<T, A>` 泛型参数、非全局可变状态**），后端只见具体调用、不新增单态化实例（D-13 第二个例外，与 D-19 并列）；默认解析顺序 = `#[default_allocator]` 注解 > 模块级 `use as default` > 全局兜底；**`Box` / 集合作用域退出自动 free**（编译器隐式插入 `defer`，非 RAII `Drop`，与 §3.2.3 不矛盾）；**L1 core（`#![no_runtime]`）无全局兜底**，`Box::new` 报错 `E_ALLOC_NO_DEFAULT`；rt 兜底 = `GeneralPurposeAllocator`（FR-021），rt-c 兜底 = `malloc/free` via `MusAllocator::from_c`（§3.8.4，deallocator 配对） | 已定（v0.4.5） |
+| D-21 | 国密 SM2/SM3/SM4 原生支持 | **`std::crypto` 以纯 MusLang 原生实现国密算法族**（SM3 散列 GB/T 32905、SM4 分组密码 GB/T 32907、SM2 公钥算法 GB/T 32918），**无 OpenSSL / BoringSSL / GmSSL 依赖**——与「自举后零外部语言依赖」（§4.3.3）和信创测评（§10）自洽；密码学安全边界（常量时间、密钥清零）经类型系统与代码生成检查表达（`#[constant_time]` 注解 / `SecretBox` 类型，见 §3.17.2）；CPU 指令加速（LoongArch/ARM）为**可选后端**、纯软实现为**基线**（后端可见性为零，D-2 分层）；算法落位 FR-048（SM3）/ FR-049（SM4）/ FR-050（SM2）；TLS 套件经 FR-016（RFC 8998 / TLCP GB/T 38636-2020）对接；MVP（M1）仅 SM3 哈希最小面，SM2/SM4 随 M2-5 交付 | 已定（v0.4.7） |
 
 #### 3.7.2 互操作：编译期机制（D-3）
 
@@ -1005,7 +1010,7 @@ M1（2026 Q4-2027 Q1）     过渡期                    v1.0+
 4. **hypo 的分发安全模型（供 `mktplace` 参考，见 §3.13.2）**：
    - 去中心化 registry（`git+https` URL，可指向 **Gitee** 私有仓库）；
    - 依赖锁定（lockfile，可复现安装）；
-   - **GPG / 国密 SM2 签名**（信创场景用 SM2，对标 SM3/SM4，见 FR-016）；
+   - **GPG / 国密 SM2 签名**（信创场景用 SM2，算法由 `std::crypto` 原生供给，见 §3.17 D-21）；
    - **SBOM（软件物料清单）** 生成，满足信创测评供应链审计（§10）；
    - 构建沙箱（可复现构建，与 D-16 §3.12.4 确定性输出协同）。
 
@@ -1365,6 +1370,157 @@ fn main() {
 
 ---
 
+### 3.17 国密 SM2/SM3/SM4 标准库原生支持（D-21，v0.4.7）
+
+> **问题**：PRD 此前仅在 FR-016 / FR-027 / M2-5 提及"国密 SM2/SM3/SM4"，但**实现路径从未定义**——引第三方库（OpenSSL / GmSSL / BoringSSL 的国密补丁）还是自研？若走第三方，"自举后零外部语言依赖"（§4.3.3）、"全栈自主可控"（§1.1）与信创测评（§10）三项承诺即被架空；若自研，安全边界（常量时间、密钥清零、侧信道）如何在无 `unsafe` 块的语言里表达也未回答。本小节定稿国密算法族的**实现方式、API 形状、安全机制与交付节奏**。
+
+#### 3.17.1 核心决策：纯 MusLang 原生实现，无第三方密码库依赖
+
+**一句话**：`std::crypto` 的国密算法族（SM2/SM3/SM4）以**纯 MusLang 源码**实现，随标准库按需链接（D-9），**不链接、不绑定、不 FFI 依赖任何第三方密码库**（OpenSSL / BoringSSL / GmSSL / Tongsuo 均不引入）。
+
+| 算法 | 标准 | FR | 内容 | 交付节奏 |
+|---|---|---|---|---|
+| **SM3** | GB/T 32905-2016 | FR-048 | 散列 + HMAC-SM3 | **M1 末期**（最小面：无曲线数学，仅字运算，可作 C99 后端与 `#[constant_time]` 机制的实弹验证场） |
+| **SM4** | GB/T 32907-2016 | FR-049 | ECB/CBC/CTR/GCM | **M2-5**（GCM 依赖 GF(2¹²⁸) 乘法，实现量最大） |
+| **SM2** | GB/T 32918-2016 | FR-050 | 签名 / 密钥交换 / 公钥加密（PME 256 位曲线） | **M2-5**（含大数运算 `std::crypto::bignum`，常量时间 Montgomery 乘） |
+
+**四点理由（与既有承诺的自洽性）**：
+
+1. **零外部依赖闭环**：国密是信创测评（§10 M3-4）与 MusCat Cookie 协议（§7，CBOR + 加密 + 审计）的**硬依赖**——若经 OpenSSL 引入，工具链"零外部语言依赖"（M3-5）在密码层失效，且 GmSSL / openssl-gm 补丁的维护主体不在本生态控制内；
+2. **算法规模可控**：SM3 / SM4 均为千行级实现（无椭圆曲线 / 大数依赖的部分），SM2 大数运算约数千行——相比引入整个 OpenSSL（30 万行+ C，自带内存安全历史），自研的**可审计面反而更小**；密码学正确性由标准测试向量 100% 覆盖兜底（§3.17.4）；
+3. **安全边界可表达**：MusLang 的类型系统（D-4 审计清单 + `SecretBox` / `#[constant_time]`，§3.17.2）使密钥处理路径**编译期可审计**——这是引 C 库做不到的（C 库内部对类型系统不可见）；
+4. **CPU 加速不锁死**：LoongArch64 / ARM64 的密码指令经**可选后端**接入（§3.17.3），纯软实现始终为基线——嵌入式 / 非加速平台无任何条件编译负担。
+
+> **明确不做**：❌ 绑定 GmSSL；❌ 经 `@cImport` 引 OpenSSL 国密补丁；❌ 将国密实现放在 `std::crypto` 之外的独立 crate（信创测评口径要求"标准库原生"）。若未来需要 RSA / AES 等**国际算法**，走 `@cImport` 对接系统 OpenSSL（用户显式选择），不进入 `std::crypto` 主面。
+
+#### 3.17.2 密码学安全边界：类型级表达（与 D-4 衔接）
+
+无 `unsafe` 块的语言如何保证侧信道安全？——**不能全靠运行时，但可以让违规在编译期可见**。两条机制：
+
+**① `SecretBox<T>` 类型（密钥材料容器）**
+
+```rust
+use std::crypto::{SecretBox, sm3, sm4};
+
+fn gen_key() -> Result<SecretBox<sm4::Key>, CryptoError> {
+    let key = SecretBox::from_rng()?;          // 密钥只能来自 CSPRNG / 解封
+    Ok(key)
+}
+// SecretBox 实现：
+//   - Debug / Display 被 trait-OOM 拒绝（编译期防日志泄漏）
+//   - 不实现 Clone / Copy（防意外复制扩散）
+//   - 作用域退出自动 free 且**清零覆写**（D-20 隐式 defer 的密码学特化：free = memset0 + free）
+
+fn decrypt(k: &SecretBox<sm4::Key>, ct: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    let m = sm4::gcm_decrypt(k, ct)?;          // 内部为常量时间实现（§3.17.3）
+    Ok(m)
+}
+```
+
+- `SecretBox` 的清零覆写由**编译器隐式 `defer` 特化**承担（D-20 机制的自然延伸，非 RAII `Drop`）——`--emit audit`（D-4）将所有密钥清零点列入审计清单；
+- 密钥明文落入普通 `Vec<u8>` / `&[u8]`（非 `SecretBox`）→ 编译期警告 `W_SECRET_PLAINTEXT`（可经 `--forbid-secret-plaintext` 升级为错误）。
+
+**② `#[constant_time]` 注解（常量时间检查）**
+
+```rust
+#[constant_time]                    // 编译器约束：函数体内不得出现秘密依赖分支/索引
+fn ct_memcmp(a: &[u8], b: &[u8]) -> bool { ... }
+```
+
+- 注解函数在 MIR 层检查：**禁止**以秘密值为条件的分支（`if secret_bit`）、**禁止**以秘密值为下标的数组访问（查表即侧信道）、**禁止**提前返回依赖秘密比较结果——违反报 `E_NON_CONSTANT_TIME`；
+- 覆盖范围：SM2 标量乘 / 逆元、SM4 GCM 的 GHASH、MAC 比较（`ct_memcmp`）等**全部标注为 `#[constant_time]`**，纳入 D-4 `unsafe_examples/` 与 CI 门禁；
+- **诚实声明**：该检查是编译期**静态近似**（阻断最常见的分支 / 查表泄漏模式），不能证明无所有微架构侧信道；最终保障以 §3.17.4 的测试向量 + 独立安全审查为准——PRD 不宣称形式化侧信道证明。
+
+| 新增错误码 | 触发 | 类别 |
+|---|---|---|
+| `E_NON_CONSTANT_TIME` | `#[constant_time]` 函数体内出现秘密依赖分支 / 查表 / 提前返回 | 编译期（MIR） |
+| `W_SECRET_PLAINTEXT`（可升级） | 密钥材料未经 `SecretBox` 暴露为普通缓冲 | 编译期（HIR） |
+| `E_CRYPTO_BAD_PARAM` | 密钥 / IV / nonce 长度或曲线参数不合法 | 编译期 + 运行时双检 |
+
+#### 3.17.3 CPU 加速：可选后端，纯软实现为基线
+
+| 平台 | 加速路径 | 状态 |
+|---|---|---|
+| x86_64 | SM4：AES-NI 仿射变换技巧 / GFNI；SM3 纯软（SHA-NI 不适用） | P1，可选 |
+| ARM64 | Crypto Extensions（SM3 / SM4 可选指令扩展） | P1，可选 |
+| LoongArch64 | LSX / LASX 向量扩展（SM4 轮函数向量化，信创主力平台） | P1，可选 |
+
+- **分发方式 = 编译期 target feature 选择**（无运行时 CPUID 分支、无函数指针间接调用，符合 P1 / P5）：`--target-feature` 启用即选加速实现，未启用则链接纯软版本；两者**输出比特一致**（由 §3.17.4 测试向量保证）；
+- 加速实现同样受 `#[constant_time]` 约束（SIMD 分支同样被 MIR 检查拒绝）；
+- MVP（M1 的 SM3）**仅纯软实现**——加速属 M2 优化项，不阻塞 M2-5 验收。
+
+#### 3.17.4 正确性验收：标准测试向量 100% + 独立审查
+
+| 验收项 | 口径 |
+|---|---|
+| 标准测试向量 | GB/T 规范附录 + RFC 8998 附录向量 **100% 通过**；对齐 GmSSL / Tongsuo（BoringSSL 国密分支）的**互测集**（交叉验证，防"自己测自己"） |
+| 随机性 | CSPRNG 接 `std::sys` 熵源（Linux `getrandom`）；SM2 密钥生成、nonce 唯一性纳入测试 |
+| 互操作 | 与 GmSSL、Tongsuo、Nginx TLCP 补丁做**互操作矩阵**（SM2 签名互验、SM4 密文互解、TLCP 握手互通） |
+| 审查 | M2-5 前完成一轮**独立密码学审查**（对照侧信道 checklist）；`#[constant_time]` 覆盖率 100%（全部常量时间函数均有注解）纳入 CI |
+| 回归 | 测试向量集进入 `tests/spec/crypto/`（§6.2），任何实现改动必须全绿 |
+
+#### 3.17.5 API 形状（MVP 面，M2-5 冻结细化）
+
+```rust
+use std::crypto::{sm3, sm4, sm2, SecretBox};
+
+// SM3（FR-048，M1）：对标 Go hash / Rust Digest 惯例
+let digest = sm3::hash(b"MusLang");                 // -> [u8; 32]
+let mac = sm3::hmac(&secret_key, b"data")?;         // HMAC-SM3
+
+// SM4（FR-049，M2-5）：GCM 为默认推荐模式（AEAD），ECB 仅显式可见
+let (ct, tag) = sm4::gcm_encrypt(&key, nonce, plaintext, aad)?;
+let pt = sm4::gcm_decrypt(&key, nonce, &ct, &tag, aad)?;   // 认证失败 -> Err(CryptoError::Auth)
+
+// SM2（FR-050，M2-5）
+let (sk, pk) = sm2::generate_keypair()?;            // SecretBox 私钥 + 公钥
+let sig = sm2::sign(&sk, msg_hash, sm2::Mode::C1C3C2_ASN1)?;
+let ok  = sm2::verify(&pk, msg_hash, &sig)?;
+let ss  = sm2::key_exchange(&sk, &peer_pk)?;        // 密钥交换（GB/T 32918.3）
+```
+
+- 命名空间 `std::crypto::sm2|sm3|sm4|bignum`，与 FR-027 的哈希 / 对称加密面共用 `SecretBox` / `CryptoError`；
+- **ECB 不提供默认便捷路径**（仅 `sm4::ecb_encrypt` 显式调用 + 文档级警告）——GCM 为默认推荐（P1 零隐藏控制流：弱模式必须显式选择）；
+- 曲线参数（SM2 PME 256）**内置编译期常量**，不接受运行时自定义曲线（MVP 减攻击面；自定义曲线属 1.0 后评估）。
+
+#### 3.17.6 与既有章节的衔接
+
+| 已有决策 | 本节（D-21）的衔接 |
+|---|---|
+| **D-9 std 按需链接** | `std::crypto` 为独立子系统 crate，`use` 才链接；hello world 二进制不受影响（`<8KB` 口径不变） |
+| **D-20 分配器** | `SecretBox` 清零覆写 = 隐式 `defer` 特化；`bignum` 内部堆缓冲同受默认分配器注入机制管理 |
+| **D-2 C99 后端** | 纯软实现为基线 = C99 直接生成；CPU 加速经 target feature（编译期选择），后端不可见性不变 |
+| **D-13 单态化** | `bignum` 定长类型（`U256` / `U512`）单态化，无 `dyn` 擦除；GHASH / Montgomery 乘为具体函数 |
+| **D-4 审计门禁** | `E_NON_CONSTANT_TIME` / `W_SECRET_PLAINTEXT` 纳入固定错误码表（spec/unsafe.md §4）与 `unsafe_examples/crypto/` 用例集 |
+| **FR-016 TLS（P1）** | RFC 8998（TLS 1.3 + SM 套件）与 TLCP（GB/T 38636-2020）的密码套件全部由本节 API 供给；证书解析（SM2/SM3 签名算法 OID）由 `std::encoding` DER 支持 |
+| **§7 MusCat Cookie 协议** | "信创场景自动用国密"由 `std::crypto` 原生供给——不再依赖任何系统级 OpenSSL 变体 |
+| **M2-5（§8）** | 验收标准细化：标准向量 100% + 互操作矩阵 + `#[constant_time]` 覆盖 100%（替代原"国密算法一致性测试"的模糊口径） |
+| **M1-0（§8）** | spec 冻结清单追加 `spec/crypto-gm.md`（国密实现规格：向量集、constant-time 检查规则、bignum 布局） |
+
+#### 3.17.7 决策表
+
+| 决策点 | 结论 | 状态 |
+|---|---|---|
+| 实现方式 | **纯 MusLang 原生**，无 OpenSSL / GmSSL / Tongsuo 依赖 | ✅ 已定（v0.4.7） |
+| 算法落位 | SM3 = FR-048（M1 末期）；SM4 = FR-049（M2-5）；SM2 = FR-050（M2-5，含 `bignum`） | ✅ 已定 |
+| 密钥容器 | `SecretBox<T>`：编译期防泄漏 + 作用域退出清零（D-20 特化） | ✅ 已定 |
+| 常量时间 | `#[constant_time]` 注解 + MIR 静态检查（`E_NON_CONSTANT_TIME`），不宣称形式化证明 | ✅ 已定 |
+| CPU 加速 | 编译期 target feature 可选后端（x86 GFNI / ARM64 CE / LoongArch LSX），**纯软为基线**，输出比特一致 | ✅ 已定（P1 交付） |
+| 弱模式 | GCM 为默认；ECB 仅显式 API + 文档警告 | ✅ 已定 |
+| 正确性验收 | GB/T + RFC 8998 向量 100% + GmSSL / Tongsuo 互测 + 独立审查（M2-5） | ✅ 已定 |
+| 国际算法（RSA / AES） | **不进入 `std::crypto` 主面**；用户经 `@cImport` 显式对接系统库 | ✅ 已定 |
+| 自定义曲线 | MVP 不支持（仅内置 SM2 PME 256）；1.0 后评估 | ✅ 已定 |
+| spec 冻结项 | M1-0 追加 `spec/crypto-gm.md` | 🔄 随 M1-0 起草 |
+
+#### 3.17.8 实现期待办
+
+- [ ] 起草 `spec/crypto-gm.md`（M1-0 窗口内）：向量集清单、`#[constant_time]` MIR 检查规则、`bignum` 定长类型布局；
+- [ ] M1 SM3 交付时实测：纯软 SM3 吞吐基线（LoongArch64 / ARM64 / x86_64 三平台各一数据点）；
+- [ ] 建立与 GmSSL / Tongsuo 的互测向量集（进入 `tests/spec/crypto/`）；
+- [ ] `--forbid-secret-plaintext` CI 门禁的默认启用范围（std 内强制、用户代码默认警告）。
+
+---
+
 ## 4. 非功能需求
 
 ### 4.1 性能指标
@@ -1584,7 +1740,8 @@ tests/
 │  构建链：MusLang 源码 → muslangc → C99 后端（MVP 默认，D-2）  │
 │        → .c → cc/clang → .o → muslink（自研）/ LLD → ELF64   │
 │  自举：muslangc 前端（MusLang 写）+ 后端（Rust 写，D-16）     │
-│  信创：LoongArch64/ARM64 + 国密 SM2/SM3/SM4                 │
+│  信创：LoongArch64/ARM64 + 国密 SM2/SM3/SM4（std::crypto 原生 │
+│        实现，无 OpenSSL/GmSSL 依赖，D-21）                     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -1600,7 +1757,7 @@ tests/
 
 | 里程碑 | 交付物 | 验收标准 |
 |---|---|---|
-| **M1-0** | **决策冻结（2 周）** | `spec/`：`grammar.ebnf`、`memory-model.md`、`unsafe.md`、`backend-c99.md`、`std-sys.md`；D-0~D-20 收口（已定 15 项生效；D-0/D-3/D-5/D-6 冻结、D-4 落地、D-11 确认）（**前置门槛，未冻结不进 M1-1） |
+| **M1-0** | **决策冻结（2 周）** | `spec/`：`grammar.ebnf`、`memory-model.md`、`unsafe.md`、`backend-c99.md`、`std-sys.md`、`crypto-gm.md`（国密实现规格，D-21）；D-0~D-21 收口（已定 16 项生效；D-0/D-3/D-5/D-6 冻结、D-4 落地、D-11 确认）（**前置门槛，未冻结不进 M1-1） |
 | M1-1 | MusLang 语法定义（类 Rust，FR-001a+001b）| 完整 grammar 文件 + 100% 语法测试通过 |
 | M1-2 | 所有权检查器 v0.1 | 通过 Rust 测试用例子集（NLL 除外） |
 | M1-3 | `*allowzero` 类型系统 | 类型检查 + 代码生成 + FFI 审计清单 |
@@ -1620,7 +1777,7 @@ tests/
 | M2-2 | MusKitty Layer 5（网络接驳）| TCP/UDP 可用，HTTP 服务可运行 |
 | M2-3 | MusKitty Layer 6（JS 引擎适配）| V8/SpiderMonkey 可在内核态运行 |
 | M2-4 | 统信 UOS / 银河麒麟适配 | 在真机上启动并运行基础服务 |
-| M2-5 | 国密 SM2/SM3/SM4 集成 | 通过国密算法一致性测试 |
+| M2-5 | 国密 SM2/SM3/SM4 集成（`std::crypto`，D-21） | 标准测试向量 100%（GB/T + RFC 8998）+ GmSSL/Tongsuo 互测互通 + `#[constant_time]` 覆盖 100%（§3.17.4） |
 | M2-6 | Freestanding 链接 + 自定义链接脚本 | 内核镜像可直接加载 |
 
 ### 阶段三：自举与信创（2027 Q4-2028 Q4）
@@ -1708,6 +1865,7 @@ fn main() {
 | LLD 依赖断供风险 | 低 | 高 | Fork Zig LLD 到 Gitee；muslink 作为纯自主后备 |
 | muslink 开发延期 | 中 | 中 | 阶段一/二先用 Zig LLD，muslink 作为阶段三目标 |
 | 社区生态匮乏 | 高 | 中 | 阶段一/二不追求生态，聚焦 MusCat 内部使用；阶段三再开放社区 |
+| 自研国密实现缺陷（侧信道 / 错误实现）| 中 | 高 | 纯软基线 + 标准向量 100% + GmSSL/Tongsuo 互测 + 独立密码学审查 + `#[constant_time]` 编译期门禁（§3.17.4，D-21）|
 
 ---
 
@@ -1944,6 +2102,9 @@ docs/
 | `E_ALLOC_NO_DEFAULT` | D-20 错误码：L1 core（`#![no_runtime]`）中无默认分配器却使用 `Box::new`/`Vec::new` |
 | `Box<T>` 自动释放 | D-20：`Box`/`Vec`/`HashMap` 等拥有堆内存的安全抽象在作用域退出时自动 free，底层 = 编译器隐式插入 `defer`（非 RAII `Drop`） |
 | `Box<T, A>` 否决 | D-20：不采用 `Box<T, A>` 泛型参数方案（组合爆炸，冲击 D-13 25 层限制），改用编译期注入 |
+| D-21 | 国密 SM2/SM3/SM4 标准库原生支持（§3.17）：纯 MusLang 实现、无 OpenSSL/GmSSL/Tongsuo 依赖，随 std 按需链接 |
+| `SecretBox<T>` | D-21 的密钥材料容器：编译期防泄漏（Debug 拒绝 / 不可 Clone）、作用域退出自动清零（D-20 隐式 defer 的密码学特化） |
+| `#[constant_time]` | D-21 的常量时间注解：MIR 层拒绝秘密依赖分支 / 查表 / 提前返回（`E_NON_CONSTANT_TIME`）；静态近似，最终保障为测试向量 + 独立审查 |
 
 ### 15.3 变更记录
 
@@ -1959,6 +2120,7 @@ docs/
 | v0.4.4 | 2026-09-05 | **运行时绑定定稿**：① `net` 事件循环（event loop / executor）**作为 `std::net` 的内部依赖自动带入**（§3.15，D-19）：用户 `use std::net` 即链接、**不提供独立的"运行时选择"**、**不引入 `#[entry]` / `block_on` 注入 API**（对标 Go，P7「网络开箱即用」）；② **MVP = 单线程 epoll**（一个 loop 处理全部连接），多线程 / work-stealing = P1（FR-047）、io_uring = P1；③ executor 内部用 **`Box<dyn Future>`**（D-13 泛型单态化的**第一个例外**，第二个为 D-20 分配器注入；避免 `Spawn<F>` 泛型爆炸）；④ **不用 `std::net` 时 event loop 完全不链接**，`<8KB` 仍可达（D-11）；⑤ 高级替换路径：不使用 `std::net`、自行基于 `std::sys` + `FfiFuture`（FR-044）实现（嵌入 C loop / 内核场景）；⑥ **澄清 P5「零运行时」=「零强制运行时」**（可选、不用不链、用了也透明，§3.15.4）；⑦ §12.7 归档 A/B/C/D 四方案对比（最终采纳 D）；⑧ §15.2 术语表新增 event loop / executor / work-stealing / 单线程 epoll；⑨ §1.1、§3.7.1（D-19）同步 | Yuanbao (AI) |
 | v0.4.5 | 2026-09-05 | **分配器模型定稿**：① 分配器采用**编译期注入默认分配器**（§3.16，D-20，方案 C）：`Box::new(x)` / `Vec::new()` / `HashMap::new()` 可用，编译器在 HIR 层自动注入默认分配器，**非 `Box<T, A>` 泛型参数、非全局可变状态**，后端只见具体调用、**不新增单态化实例**；② 默认解析顺序 = `#[default_allocator]` 注解 > 模块级 `use as default` > 全局兜底；③ **`Box` / 集合作用域退出自动 free**（编译器隐式插入 `defer`，非 RAII `Drop`，与 §3.2.3 不矛盾），用户自定义类型仍需手写 `defer`（P1）；④ **L1 core（`#![no_runtime]`）无全局兜底**，`Box::new` 报错 `E_ALLOC_NO_DEFAULT`；⑤ rt 兜底 = `GeneralPurposeAllocator`（FR-021），rt-c 兜底 = `malloc/free` via `MusAllocator::from_c`（§3.8.4，deallocator 配对）；⑥ 与 D-13 关系 = **第二个例外**（HIR 重写、不新增单态化实例，与 D-19 并列）；⑦ 否决 `Box<T, A>` 泛型参数方案（组合爆炸，冲击 25 层限制）；⑧ 错误码 `E_ALLOC_NO_DEFAULT` / `E_ALLOC_MISMATCH` / `E_DEFAULT_ALLOCATOR_UNRESOLVED` / `W_ALLOC_LEAK`；⑨ §12.8 重写为跳转 + 历史待定项收敛表；⑩ §3.7.1 追加 D-20、§1.1 待定项移除分配器、§15.2 术语表新增编译期注入 / `#[default_allocator]` / `E_ALLOC_NO_DEFAULT` / `Box<T>` 自动释放 / `Box<T,A>` 否决 | Yuanbao (AI) |
 | v0.4.6 | 2026-09-05 | **自洽性修订**：① D-12 修订——`defer` 改为**全路径执行**（含错误路径，Zig 语义），`errdefer` 仅错误路径补充执行、与 `defer` 同栈 LIFO，取消非错误返回（§3.2.3.1、§3.7.1 D-12）；② D-20 对齐——`Box` 隐式 free 在 `?` 路径同样执行（不泄漏），LIFO 执行顺序表述更正（§3.16.3）；③ FR-001 落地为 001a/001b（D-1）；④ §9 示例对齐 D-19（同步 `main`、`std::net`、Handler 三处统一）；⑤ TLS 收敛为 FR-016（P1）；⑥ D-13 例外口径统一（第一 = D-19，第二 = D-20）；⑦ §3.4.1 架构图单态化移至 HIR 层、移除宏展开阶段；⑧ §3.11.3 改为 Itanium vtable 直接调用（去 `dyn` 表述）；⑨ §3.10.1 `longest` 改为 `E_LIFETIME_AMBIGUOUS` 报错示例；⑩ §3.15.2 任务模型澄清（每连接 future + 就绪队列 256 深，10 万连接 = 空闲挂起口径）；⑪ 时间线顺延：M1 = 2026 Q4-2027 Q1、M2 = 2027 Q2-Q3、M3 = 2027 Q4-2028 Q4；⑫ D-2 传播清理（§2/§7/§6.3/§11 Zig 残留）；⑬ P5「零强制运行时」、FR-008/FR-013/FR-047、§1.1/§12 章首、§3.12.5 验收口径、§3.13.1 std 打包条目同步；⑭ 结构修复：§3.16 移至 §3.15 后、删除 §4 前孤儿表、§8/§15.2/§15.3 表格修复、citation 与 §5 示例清理、仓库 URL 统一为 GitHub | 墨染柒（Ink-dark） |
+| v0.4.7 | 2026-09-06 | **国密原生支持定稿**：① 新增 §3.17（D-21）：`std::crypto` 以**纯 MusLang 原生**实现 SM3（GB/T 32905）/ SM4（GB/T 32907）/ SM2（GB/T 32918），**无 OpenSSL / GmSSL / Tongsuo 依赖**——与「自举后零外部语言依赖」（§4.3.3）、信创测评（§10）、MusCat Cookie 协议（§7）闭环；② 新增 FR-048（SM3，M1 末期）/ FR-049（SM4，M2-5）/ FR-050（SM2 + `bignum`，M2-5）；③ FR-016 对标细化：RFC 8998（TLS 1.3 + SM 套件）+ TLCP（GB/T 38636-2020）；④ 密码学安全边界类型级表达：`SecretBox<T>`（编译期防泄漏 + 作用域退出清零，D-20 特化）+ `#[constant_time]` 注解（MIR 拒绝秘密依赖分支/查表，`E_NON_CONSTANT_TIME`），不宣称形式化侧信道证明；⑤ CPU 加速 = 编译期 target feature 可选后端（x86 GFNI / ARM64 CE / LoongArch LSX），**纯软实现为基线**，输出比特一致；⑥ 验收口径：GB/T + RFC 8998 向量 100% + GmSSL/Tongsuo 互测矩阵 + 独立密码学审查（M2-5 细化）；⑦ 决策：国际算法（RSA/AES）不进 `std::crypto` 主面、SM2 自定义曲线 MVP 不支持、ECB 仅显式 API；⑧ M1-0 spec 清单追加 `spec/crypto-gm.md`；⑨ §3.7.1 追加 D-21、§1.1/§2/§7/§11/§3.14.1/§15.2 同步 | 墨染柒（Ink-dark） |
 
 ---
 

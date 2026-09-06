@@ -57,6 +57,7 @@
 | `E_MONO_DEPTH_EXCEEDED` / `E_MONO_CYCLE` / `E_MONO_UNINSTANTIATED` | 单态化 | D-13 / §3.9.3 |
 | `E_LIFETIME_AMBIGUOUS` / `E_LIFETIME_STRUCT_OMITTED` / `E_LIFETIME_FFI_OMITTED` / `E_HRTB_NOT_SUPPORTED` | 生命周期 | D-14 / §3.10.3 |
 | `E_ALLOC_NO_DEFAULT` / `E_ALLOC_MISMATCH` / `E_DEFAULT_ALLOCATOR_UNRESOLVED` / `W_ALLOC_LEAK`（可升级） | 分配器模型 | D-20 / §3.16.8 |
+| `E_NON_CONSTANT_TIME` / `W_SECRET_PLAINTEXT`（可升级）/ `E_CRYPTO_BAD_PARAM` | 国密密码边界（`SecretBox` / `#[constant_time]`） | D-21 / §3.17.2 |
 
 错误码一经发布**固定不可复用**；新增语义须使用新编号（D-0 IR 冻结精神）。
 
@@ -70,7 +71,8 @@ unsafe_examples/
 ├── ffi_mixed_strategy/       # A/C 混用（F-03 违规）
 ├── allocator_pairing/        # from_c 配对（合法）+ 不配对（W_FFI_ALLOCATOR_MISMATCH）
 ├── defer_semantics/          # defer/errdefer 全路径 + 取消 + panic 路径
-└── mono_depth/               # 25 层边界用例（24 通过 / 25 拒绝）
+├── mono_depth/               # 25 层边界用例（24 通过 / 25 拒绝）
+└── crypto/                   # D-21：constant-time 违规用例 + SecretBox 泄漏用例（M1 SM3 交付时建立）
 ```
 
 - 每个用例 = 最小可编译/可拒编译片段 + 预期结果（`ok` / `error(E_XXX)`）+ 断言说明。
